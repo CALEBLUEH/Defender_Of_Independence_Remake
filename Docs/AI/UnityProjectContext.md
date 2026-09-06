@@ -13,6 +13,7 @@ Analyzed commit: `7675b34b9a3140d7cfbebff561906b474d83d330`
 - Render pipeline: Universal Render Pipeline 17.5.0
 - Input: Input System 1.19.0; Active Input Handling is now set to Both so the copied legacy-input museum controller and Starter Assets can coexist
 - Cinemachine: 3.1.7
+- glTFast: 6.19.0, used for the counter-terrorist glTF asset and selected to match the project's installed Burst version
 - Target: desktop game; no platform build target was verified during onboarding
 
 Sources: `ProjectSettings/ProjectVersion.txt`, `ProjectSettings/GraphicsSettings.asset`, `ProjectSettings/ProjectSettings.asset`, `Packages/manifest.json`, `Packages/packages-lock.json`.
@@ -26,6 +27,8 @@ Sources: `ProjectSettings/ProjectVersion.txt`, `ProjectSettings/GraphicsSettings
 - `Unity.StarterAssets`: main runtime assembly; references the Input System
 - `Unity.StartAssets.Editor` and `URPWizard`: editor-only Starter Assets assemblies
 - Other first-party scripts currently compile into Unity's default project assembly
+- `Assets/Script/Level1/Player`: first-person input, weapon, HUD, interaction, and damage-extension components
+- `Assets/Level1/Prefabs/Player/LevelOnePlayer.prefab`: generated, Inspector-editable Level 1 player
 
 ## Scenes and startup flow
 
@@ -45,6 +48,7 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - No Unity MCP capability was available in this task.
 - Because the user's source and destination projects were open in Unity, the final migrated project was copied to an isolated validation directory and opened with Unity 6000.5.0f1 in batch mode. Compilation and the museum migration/validation utility completed successfully.
 - A player build and interactive Play Mode smoke test have not yet been run.
+- The Level 1 player setup utility completed in an isolated project copy and validated the player at the authored `PlayerSpawnPoint`, including the camera, input actions, weapon controller, and five shadows-only character renderers.
 
 ## Important constraints and risks
 
@@ -53,6 +57,8 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - Preserve copied `.meta` files so scene, prefab, model, texture, material, font, and script GUID references remain intact after reorganization.
 - Fungus/Amanita references both UGUI and the Input System assemblies. UGUI 2.5.0 is explicitly present in the remake package manifest, and the hierarchy-icon editor integration has a Unity 6000.5 compatibility branch.
 - The museum scene is not yet a finished gallery: its current hierarchy contains menu, settings, radio, interaction, and placeholder environment objects.
+- The supplied counter-terrorist is rigged but has no usable gameplay animations; its repeated preview/test clips were removed. The first-person body follows player yaw and renders as shadows only.
+- The supplied pistol has no source URL or licence in its archive. Treat it as local assignment material until the user supplies the original source and licence.
 
 ## Source files inspected
 
