@@ -222,7 +222,7 @@ namespace DefenderOfIndependence.EditorTools
                 Transform cameraRoot = player.GetComponentsInChildren<Transform>(true).First(transform => transform.name == "PlayerCameraRoot");
                 movement.MoveSpeed = 5f;
                 movement.SprintSpeed = 2.5f;
-                movement.JumpHeight = 0f;
+                movement.JumpHeight = 1.2f;
                 movement.RotationSpeed = 1f;
                 movement.CinemachineCameraTarget = cameraRoot.gameObject;
                 playerInput.actions = actions;
@@ -230,9 +230,18 @@ namespace DefenderOfIndependence.EditorTools
                 playerInput.defaultControlScheme = "KeyboardMouse";
                 playerInput.notificationBehavior = PlayerNotifications.SendMessages;
 
+                Transform aimPoint = new GameObject("Player Damage Aim Point").transform;
+                aimPoint.SetParent(player.transform, false);
+                aimPoint.localPosition = new Vector3(0f, 1.35f, 0f);
+                CombatHealth health = player.AddComponent<CombatHealth>();
+                SetInteger(health, "team", (int)CombatTeam.Player);
+                SetString(health, "displayName", "Player");
+                SetFloat(health, "maximumHealth", 100f);
+                SetReference(health, "aimPoint", aimPoint);
+
                 Camera camera = CreateCamera(cameraRoot);
                 LevelOnePlayerInput levelInput = player.AddComponent<LevelOnePlayerInput>();
-                FirstPersonWeaponHud hud = CreateHud(player.transform, out TMP_Text interactionPrompt);
+                FirstPersonWeaponHud hud = CreateHud(player.transform, health, out TMP_Text interactionPrompt);
                 Transform weaponView = CreateWeaponView(camera.transform, gunAsset, gunMaterial);
 
                 FirstPersonWeaponController weapon = player.AddComponent<FirstPersonWeaponController>();
@@ -246,6 +255,16 @@ namespace DefenderOfIndependence.EditorTools
                 SetReference(interactor, "input", levelInput);
                 SetReference(interactor, "playerCamera", camera);
                 SetReference(interactor, "promptText", interactionPrompt);
+
+                PlayerTargetHealthDisplay targetDisplay = player.AddComponent<PlayerTargetHealthDisplay>();
+                SetReference(targetDisplay, "aimCamera", camera);
+                SetReference(targetDisplay, "hud", hud);
+
+                PlayerLifeController life = player.AddComponent<PlayerLifeController>();
+                SetReference(life, "health", health);
+                SetReference(life, "movement", movement);
+                SetReference(life, "weapon", weapon);
+                SetReference(life, "playerInput", playerInput);
 
                 AddShadowBody(player.transform, bodyAsset);
 
@@ -352,7 +371,7 @@ namespace DefenderOfIndependence.EditorTools
             model.transform.localPosition += correction;
         }
 
-        private static FirstPersonWeaponHud CreateHud(Transform player, out TMP_Text interactionPrompt)
+        private static FirstPersonWeaponHud CreateHud(Transform player, CombatHealth health, out TMP_Text interactionPrompt)
         {
             TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
             GameObject canvasObject = new GameObject("Level 1 Player HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -369,6 +388,12 @@ namespace DefenderOfIndependence.EditorTools
             SetRect(ammo.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-310, 35), new Vector2(275, 55));
             TMP_Text mode = CreateText(canvasObject.transform, "Fire Mode", font, 20, TextAlignmentOptions.BottomRight);
             SetRect(mode.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-310, 92), new Vector2(275, 40));
+            Image healthFill = CreateHealthBar(canvasObject.transform, out Slider healthSlider);
+            TMP_Text healthText = CreateText(canvasObject.transform, "Player Health", font, 18, TextAlignmentOptions.Center);
+            SetRect(healthText.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-310, 142), new Vector2(275, 30));
+            TMP_Text targetHealth = CreateText(canvasObject.transform, "Target Health", font, 18, TextAlignmentOptions.Center);
+            SetRect(targetHealth.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -42), new Vector2(420, 36));
+            targetHealth.gameObject.SetActive(false);
             interactionPrompt = CreateText(canvasObject.transform, "Interaction Prompt", font, 24, TextAlignmentOptions.Center);
             SetRect(interactionPrompt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-260, -125), new Vector2(520, 50));
             interactionPrompt.gameObject.SetActive(false);
@@ -376,7 +401,45 @@ namespace DefenderOfIndependence.EditorTools
             FirstPersonWeaponHud hud = canvasObject.AddComponent<FirstPersonWeaponHud>();
             SetReference(hud, "ammoText", ammo);
             SetReference(hud, "fireModeText", mode);
+            SetReference(hud, "playerHealth", health);
+            SetReference(hud, "playerHealthSlider", healthSlider);
+            SetReference(hud, "playerHealthFill", healthFill);
+            SetReference(hud, "playerHealthText", healthText);
+            SetReference(hud, "targetHealthText", targetHealth);
             return hud;
+        }
+
+        private static Image CreateHealthBar(Transform parent, out Slider slider)
+        {
+            GameObject backgroundObject = new GameObject("Player Health Bar Background", typeof(RectTransform), typeof(Image));
+            backgroundObject.transform.SetParent(parent, false);
+            Image background = backgroundObject.GetComponent<Image>();
+            background.color = new Color(0.04f, 0.04f, 0.04f, 0.85f);
+            background.raycastTarget = false;
+            SetRect(background.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-310, 142), new Vector2(275, 30));
+
+            GameObject fillObject = new GameObject("Player Health Bar Fill", typeof(RectTransform), typeof(Image));
+            fillObject.transform.SetParent(backgroundObject.transform, false);
+            RectTransform fillRect = fillObject.GetComponent<RectTransform>();
+            fillRect.anchorMin = new Vector2(0f, 0f);
+            fillRect.anchorMax = new Vector2(1f, 1f);
+            fillRect.offsetMin = new Vector2(3f, 3f);
+            fillRect.offsetMax = new Vector2(-3f, -3f);
+            Image fill = fillObject.GetComponent<Image>();
+            fill.color = new Color(0.15f, 0.8f, 0.3f, 0.95f);
+            fill.type = Image.Type.Simple;
+            fill.raycastTarget = false;
+            slider = backgroundObject.AddComponent<Slider>();
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.SetValueWithoutNotify(1f);
+            slider.fillRect = fillRect;
+            slider.targetGraphic = fill;
+            slider.handleRect = null;
+            slider.interactable = false;
+            slider.transition = Selectable.Transition.None;
+            slider.navigation = new Navigation { mode = Navigation.Mode.None };
+            return fill;
         }
 
         private static void CreateCrosshair(Transform parent)
@@ -403,7 +466,7 @@ namespace DefenderOfIndependence.EditorTools
             text.fontSize = size;
             text.color = Color.white;
             text.alignment = alignment;
-            text.enableWordWrapping = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
             text.raycastTarget = false;
             text.text = string.Empty;
             return text;
@@ -455,9 +518,16 @@ namespace DefenderOfIndependence.EditorTools
                 throw new InvalidOperationException("Generated player prefab is incomplete.");
             }
 
-            if (prefab.GetComponentInChildren<Camera>(true) == null || prefab.GetComponent<FirstPersonWeaponController>() == null)
+            if (prefab.GetComponentInChildren<Camera>(true) == null || prefab.GetComponent<FirstPersonWeaponController>() == null ||
+                prefab.GetComponent<CombatHealth>() == null || prefab.GetComponent<PlayerLifeController>() == null ||
+                prefab.GetComponent<PlayerTargetHealthDisplay>() == null)
             {
-                throw new InvalidOperationException("Generated first-person camera or weapon controller is missing.");
+                throw new InvalidOperationException("Generated first-person camera, combat health, or weapon controller is missing.");
+            }
+
+            if (prefab.GetComponent<FirstPersonController>().JumpHeight <= 0f)
+            {
+                throw new InvalidOperationException("Level 1 jumping is disabled on the generated player prefab.");
             }
 
             Transform bodyRoot = prefab.transform.Find("Counter Terrorist Body (Shadows Only)");
@@ -475,7 +545,7 @@ namespace DefenderOfIndependence.EditorTools
             }
 
             InputActionAsset actions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(InputActionsPath);
-            string[] requiredActions = { "Move", "Look", "Sprint", "Fire", "ToggleFireMode", "Reload", "Interact" };
+            string[] requiredActions = { "Move", "Look", "Jump", "Sprint", "Fire", "ToggleFireMode", "Reload", "Interact" };
             foreach (string action in requiredActions)
             {
                 if (actions.FindAction($"Player/{action}") == null)
@@ -491,7 +561,7 @@ namespace DefenderOfIndependence.EditorTools
                 throw new InvalidOperationException("Scene_Level1 does not contain the generated player.");
             }
 
-            Debug.Log($"LEVEL1_PLAYER_VALID position={player.transform.position} bodyRenderers={bodyRenderers.Length} controls=WASD,ShiftWalk,MouseAim,LMBFire,RMBMode,RReload,CInteract");
+            Debug.Log($"LEVEL1_PLAYER_VALID position={player.transform.position} bodyRenderers={bodyRenderers.Length} controls=WASD,ShiftWalk,SpaceJump,MouseAim,LMBFire,RMBMode,RReload,CInteract");
         }
 
         private static void SetReference(UnityEngine.Object target, string propertyName, UnityEngine.Object value)
@@ -504,6 +574,27 @@ namespace DefenderOfIndependence.EditorTools
             }
 
             property.objectReferenceValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetFloat(UnityEngine.Object target, string propertyName, float value)
+        {
+            SerializedObject serialized = new SerializedObject(target);
+            serialized.FindProperty(propertyName).floatValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetInteger(UnityEngine.Object target, string propertyName, int value)
+        {
+            SerializedObject serialized = new SerializedObject(target);
+            serialized.FindProperty(propertyName).intValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetString(UnityEngine.Object target, string propertyName, string value)
+        {
+            SerializedObject serialized = new SerializedObject(target);
+            serialized.FindProperty(propertyName).stringValue = value;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

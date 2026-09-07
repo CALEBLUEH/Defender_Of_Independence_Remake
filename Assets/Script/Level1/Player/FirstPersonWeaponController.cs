@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace DefenderOfIndependence.Level1
 {
@@ -16,7 +17,9 @@ namespace DefenderOfIndependence.Level1
         [SerializeField, Min(1)] private int magazineSize = 12;
         [SerializeField, Min(0.02f)] private float automaticShotInterval = 0.12f;
         [SerializeField, Min(0f)] private float reloadDuration = 0.5f;
-        [SerializeField, Min(0f)] private float damage = 25f;
+        [SerializeField, Min(0f)] private float minimumDamage = 5f;
+        [FormerlySerializedAs("damage")]
+        [SerializeField, Min(0f)] private float maximumDamage = 10f;
         [SerializeField, Min(1f)] private float range = 100f;
         [SerializeField] private LayerMask hitLayers = ~0;
 
@@ -128,7 +131,8 @@ namespace DefenderOfIndependence.Level1
                     QueryTriggerInteraction.Ignore))
             {
                 IDamageable damageable = FindDamageable(hit.collider);
-                damageable?.ApplyDamage(damage, hit.point, aimCamera.transform.forward);
+                float shotDamage = Random.Range(minimumDamage, maximumDamage);
+                damageable?.ApplyDamage(shotDamage, hit.point, aimCamera.transform.forward);
             }
 
             RefreshHud();
@@ -171,6 +175,12 @@ namespace DefenderOfIndependence.Level1
             }
 
             return null;
+        }
+
+        private void OnValidate()
+        {
+            minimumDamage = Mathf.Max(0f, minimumDamage);
+            maximumDamage = Mathf.Max(minimumDamage, maximumDamage);
         }
     }
 }
