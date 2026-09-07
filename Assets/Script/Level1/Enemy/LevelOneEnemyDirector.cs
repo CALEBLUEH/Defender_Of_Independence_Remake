@@ -27,13 +27,31 @@ namespace DefenderOfIndependence.Level1
 
         private readonly List<LevelOneEnemyBrain> _livingEnemies = new List<LevelOneEnemyBrain>();
         private bool _reportedMissingNavMesh;
+        private bool _gameplayStarted;
+        private Coroutine _reinforcementRoutine;
 
         public int LivingEnemyCount => _livingEnemies.Count;
+        public bool GameplayStarted => _gameplayStarted;
 
-        private void Start()
+        public void BeginGameplay()
         {
+            if (_gameplayStarted)
+            {
+                return;
+            }
+
+            _gameplayStarted = true;
             SpawnBatch(initialEnemyCount);
-            StartCoroutine(SpawnReinforcements());
+            _reinforcementRoutine = StartCoroutine(SpawnReinforcements());
+        }
+
+        private void OnDisable()
+        {
+            if (_reinforcementRoutine != null)
+            {
+                StopCoroutine(_reinforcementRoutine);
+                _reinforcementRoutine = null;
+            }
         }
 
         private IEnumerator SpawnReinforcements()

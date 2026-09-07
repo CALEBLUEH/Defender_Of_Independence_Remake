@@ -1,11 +1,11 @@
 # Unity Project Context
 
-Last analyzed: 2026-09-06  
+Last analyzed: 2026-09-07  
 Analyzed commit: `ea60326be2f89db5d0e861d731aa285d8bda5e44`
 
 ## Project summary
 
-`Defender_Of_Independence_Remake` is the clean Unity project for rebuilding the educational desktop game. The current project is a small URP project with Unity Starter Assets and one authored main-menu scene. The museum migration is sourced from `GameDevelopment2Assignment`, but unrelated senior-project scenes and systems should not be copied.
+`Defender_Of_Independence_Remake` is the clean Unity project for rebuilding the educational desktop game. The current URP project contains the menu/gallery foundation, a playable Level 1 hostage-rescue loop, Fungus cutscenes for Levels 1 and 2, and a Level 2 house/environment kit. The museum migration is sourced from `GameDevelopment2Assignment`, but unrelated senior-project scenes and systems should not be copied.
 
 ## Confirmed environment
 
@@ -33,13 +33,16 @@ Sources: `ProjectSettings/ProjectVersion.txt`, `ProjectSettings/GraphicsSettings
 - `Assets/Script/Level1/Enemy`: attack, defend, retreat, spawning, aiming-pose, and world-health-bar components
 - `Assets/Level1/Prefabs/Player/LevelOnePlayer.prefab`: generated, Inspector-editable Level 1 player
 - `Assets/Level1/Prefabs/Enemy/LevelOneEnemy.prefab`: generated, Inspector-editable Terrorist enemy using the shared pistol
+- `Assets/Level2/Art`: imported house, furniture, radio, and clock FBX/texture sources plus generated URP materials
+- `Assets/Level2/Prefabs`: the house, 40 individually placeable furniture pieces, and progression prop prefabs
 
 ## Scenes and startup flow
 
-- `Assets/Scene/MainMenu.unity` is the only authored remake scene found before migration.
-- Starter Assets includes first- and third-person playground sample scenes.
-- `ProjectSettings/EditorBuildSettings.asset` initially contained no build scenes, so a startup scene was not configured.
-- The senior project's requested source scene is the misspelled `Assets/Scene/Meuseum.unity`; its current working-tree version is user-modified and is the migration source.
+- The current flow is `Scene_MainMenu` → `Cutscene_Level1` → `Scene_Level1` → `Cutscene_Level2` → `Scene_Level2`.
+- `Scene_Level1` opens on a paused, scrollable instruction panel. START MISSION enables player controls and begins the initial enemy wave.
+- `Cutscene_Level2` contains seven Fungus dialogue beats and loads `Scene_Level2` after its final Space prompt.
+- `Scene_Level2` contains the imported interior house at the origin under `Level 2 Environment`, the user's room decoration, and a model-less WASD/mouse first-person player under `Level 2 Gameplay`. Three C-interaction doors use paired Enter/Exit markers and a black fade transition. The player exposes `ReturnToInitialSpawn()` for the future day-skip flow.
+- The senior project's requested source scene was the misspelled `Assets/Scene/Meuseum.unity`; its working-tree version was the migration source.
 
 ## Architecture and conventions
 
@@ -59,6 +62,11 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - The health presentation was migrated from sprite-less Filled Images to non-interactable Sliders after gameplay showed that the rectangles stayed visually full. Runtime validation observed both Slider values and fill-rectangle anchors at `0.5` after applying 50 damage.
 - Level 1 now has a serialized `Level 1 Objective Controller`: one hostage may follow behind the player at a time, tent contact rescues it, the HUD counts two rescues, Victory pauses gameplay, and Next Level loads `Cutscene_Level2`. A focused Play Mode smoke check exercised the blocked second escort, movement toward the trailing position, both rescues, victory, and the scene transition.
 - A restart smoke check confirmed the reloaded Level 1 hides the cursor. The batch Editor cannot retain `CursorLockMode.Locked` without a focused Game view, so final lock-state validation remains a hands-on Editor check; production code requests both lock and hide.
+- The Level 1 instruction authoring pass validated a vertical ScrollRect, complete control/objective text, player input gating, and an idempotent enemy start gate. The initial five enemies now spawn only after START MISSION.
+- The Level 2 cutscene authoring pass validated seven dialogue commands, the final `PRESS SPACE TO START` mode, and its `Scene_Level2` load target.
+- The Level 2 model pass inspected all FBX hierarchies before splitting, generated 40 furniture prefabs plus house/radio/clock prefabs, and validated every prefab has renderers and colliders. The house is 11.05 × 3.41 × 12.81 Unity units with four mesh colliders. All generated materials resolve to supported URP/Lit shaders and their intended base/normal/occlusion textures.
+- The Level 1 instruction controller now synchronizes its menu/gameplay cursor state with `StarterAssetsInputs`, preventing focus changes from locking the pointer before START MISSION.
+- The Level 2 gameplay authoring pass compiled under Unity 6000.5.0f1 and persisted a model-less CharacterController player, initial-spawn reference, three explicit door/spawn pairs, an Inspector-editable C prompt, and an unscaled-time black fade overlay without rebuilding the user's environment or furniture roots.
 
 ## Important constraints and risks
 
@@ -71,6 +79,7 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - The supplied pistol has no source URL or licence in its archive. Treat it as local assignment material until the user supplies the original source and licence.
 - The supplied Terrorist model also has no source URL or licence in its archive. Unity reports two source meshes without normals when calculating tangents; the complete character still renders in the validated preview, but the source file should be repaired if normal-mapped materials are added later.
 - The local hostage archive is the CC BY 4.0 “Prisoner Hostage Low Poly Character” by 00amza, not the separately supplied KinderKiev URL. The actual imported asset's attribution is recorded in `Assets/Level1/Art/Hostage/SOURCE.md`. The tent is CC BY 4.0 by Arkikon and is recorded in its own source file.
+- Level 2 third-party sources and licences are recorded in `Assets/Level2/Art/THIRD_PARTY_SOURCES.md`. Furniture Set 03 is CC BY-NC-SA 4.0, so it must not be used for a commercial release without replacement or separate permission, and share-alike obligations need review before distribution.
 
 ## Source files inspected
 
