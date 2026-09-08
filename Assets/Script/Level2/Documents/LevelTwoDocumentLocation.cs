@@ -26,6 +26,9 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private DocumentPage[] pages;
         [SerializeField] private bool reusable;
         [SerializeField, Min(0)] private int energyCost = 1;
+        [SerializeField] private LevelTwoNegotiationMeterController meterController;
+        [SerializeField] private LevelTwoNegotiationMeterController.MeterType documentBonusMeter;
+        [SerializeField, Min(0)] private int documentBonusAmount = 5;
 
         private readonly List<int> _remainingPages = new List<int>();
         private bool _poolInitialized;
@@ -44,6 +47,9 @@ namespace DefenderOfIndependence.Level2
         public bool IsReusable => reusable;
         public int EnergyCost => energyCost;
         public bool RequiresConfirmation => !reusable && energyCost > 0;
+        public RoomType Room => room;
+        public LevelTwoNegotiationMeterController.MeterType DocumentBonusMeter => documentBonusMeter;
+        public int DocumentBonusAmount => documentBonusAmount;
 
         public bool CanExamine(LevelTwoDayController dayController)
         {
@@ -104,8 +110,14 @@ namespace DefenderOfIndependence.Level2
 
             DocumentPage page = pages[pageIndex];
             bool showDayPrompt = room == RoomType.MainLobby;
+            Action onClosed = null;
+            if (!reusable && meterController != null &&
+                documentBonusMeter != LevelTwoNegotiationMeterController.MeterType.None)
+            {
+                onClosed = () => meterController.GrantDocumentBonus(documentBonusMeter, documentBonusAmount);
+            }
             viewer.Show(page.title, page.body, showDayPrompt, dayController.CurrentDay,
-                dayController.CurrentBriefingTitle, dayController.CurrentRecommendation);
+                dayController.CurrentBriefingTitle, dayController.CurrentRecommendation, onClosed);
             return true;
         }
 

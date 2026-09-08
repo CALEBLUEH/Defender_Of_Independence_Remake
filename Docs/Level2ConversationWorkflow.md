@@ -4,7 +4,7 @@
 
 Aim at the scheduled character and press `C` to spend 1 Energy and begin that day's conversation. Day 4 uses the authored `RadioStationCollider`. The dialogue window releases the mouse pointer and presents the choices from `Dummy Word File.docx`. After selecting a choice, click `CONTINUE`; the Day 6 finale proceeds through all three questions before closing.
 
-Each conversation can begin only once. Its collider remains targetable during the active day so a completed interaction reports `NO CONVERSATION REMAINS HERE TODAY`. Dialogue choices do not change British Confidence, Delegation Unity, or Public Support yet.
+Each conversation can begin only once. Its collider remains targetable during the active day so a completed interaction reports `NO CONVERSATION REMAINS HERE TODAY`. Dialogue choices change British Confidence, Delegation Unity, and Public Support using the values authored in `Dummy Word File.docx`; document preparation bonuses strengthen future positive changes.
 
 | Day | Trigger | Steps |
 | --- | --- | --- |
@@ -24,6 +24,7 @@ Character wrappers contain an editable child named `Conversation Collider`. The 
 - After paying for a room, the player may leave and re-enter that room freely for the rest of the day.
 - Advancing to the next day makes each room's first entry cost Energy again.
 - On Day 6, the Planning Room and Radio Station doors are locked. Only the Alan Lennox-Boyd/British Office door remains available.
+- Entering Day 6 requires every negotiation meter to be above 50. Completing the final conference requires every meter to be above 65.
 
 The paid-room state is stored by each `LevelTwoDoorTransition` and compared with the current day, so no separate reset wiring is required.
 

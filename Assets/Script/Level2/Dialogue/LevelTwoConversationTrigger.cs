@@ -11,6 +11,7 @@ namespace DefenderOfIndependence.Level2
             [TextArea(2, 5)] public string text;
             public string responseSpeaker;
             [TextArea(3, 8)] public string response;
+            public LevelTwoNegotiationMeterController.MeterChange meterChange;
         }
 
         [Serializable]
@@ -35,6 +36,7 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private Collider interactionCollider;
         [SerializeField, Min(0)] private int energyCost = 1;
         [SerializeField] private Transform cameraFocusTarget;
+        [SerializeField] private bool calculateFinalResultOnComplete;
         [SerializeField] private ConversationStep[] steps;
 
         private bool _consumed;
@@ -47,6 +49,7 @@ namespace DefenderOfIndependence.Level2
         public string ConversationDisplayName => conversationDisplayName;
         public Transform CameraFocusTarget => cameraFocusTarget;
         public bool RequiresConfirmation => energyCost > 0;
+        public bool CalculatesFinalResult => calculateFinalResultOnComplete;
 
         public bool CanBegin(LevelTwoDayController dayController)
         {
@@ -99,7 +102,7 @@ namespace DefenderOfIndependence.Level2
                 return false;
             }
 
-            if (!viewer.Begin(steps, cameraFocusTarget))
+            if (!viewer.Begin(steps, cameraFocusTarget, calculateFinalResultOnComplete))
             {
                 return false;
             }

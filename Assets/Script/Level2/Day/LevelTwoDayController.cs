@@ -21,6 +21,7 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private DayBriefing[] briefings;
         [SerializeField] private LevelTwoScheduledCharacter[] scheduledCharacters;
         [SerializeField] private LevelTwoConversationTrigger[] conversationTriggers;
+        [SerializeField] private LevelTwoNegotiationMeterController negotiationMeters;
 
         [Header("Player")]
         [SerializeField] private LevelTwoFirstPersonController playerController;
@@ -29,6 +30,7 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private TMP_Text currentDayText;
         [SerializeField] private TMP_Text recommendationText;
         [SerializeField] private TMP_Text energyText;
+        [SerializeField] private GameObject[] transitionHiddenHud;
 
         [Header("Daily Energy")]
         [SerializeField, Min(1)] private int maximumEnergy = 4;
@@ -42,6 +44,7 @@ namespace DefenderOfIndependence.Level2
         [SerializeField, Min(0f)] private float cardHoldDuration = 1.35f;
 
         private Coroutine _transitionRoutine;
+        private bool _progressionFailed;
 
         public int CurrentDay { get; private set; }
         public int CurrentEnergy { get; private set; }
@@ -49,7 +52,7 @@ namespace DefenderOfIndependence.Level2
         public int MaximumEnergy => maximumEnergy;
         public string CurrentBriefingTitle => GetBriefing(CurrentDay).title;
         public string CurrentRecommendation => GetBriefing(CurrentDay).recommendation;
-        public bool CanAdvanceDay => _transitionRoutine == null && CurrentDay < finalDay;
+        public bool CanAdvanceDay => _transitionRoutine == null && !_progressionFailed && CurrentDay < finalDay;
         public bool IsTransitioning => _transitionRoutine != null;
 
         private void Awake()
@@ -73,6 +76,13 @@ namespace DefenderOfIndependence.Level2
             if (!CanAdvanceDay)
             {
                 return false;
+            }
+
+            if (CurrentDay + 1 == finalDay && negotiationMeters != null && !negotiationMeters.CanEnterFinalDay)
+            {
+                _progressionFailed = true;
+                negotiationMeters.BeginFinalDayGateFailure();
+                return true;
             }
 
             _transitionRoutine = StartCoroutine(AdvanceDayRoutine());
@@ -100,20 +110,24 @@ namespace DefenderOfIndependence.Level2
             }
 
             CurrentDay = Mathf.Clamp(startingDay, 1, finalDay);
+            _progressionFailed = false;
             CurrentEnergy = maximumEnergy;
             playerController?.ReturnToInitialSpawn();
             playerController?.SetControlsEnabled(true);
             SetDayCardAlpha(0f);
+            SetTransitionHudVisible(true);
             ApplyCurrentDay();
         }
 
         private IEnumerator PresentOpeningDay()
         {
             playerController?.SetControlsEnabled(false);
+            SetTransitionHudVisible(false);
             RefreshDayCard();
             yield return FadeDayCard(1f);
             yield return new WaitForSecondsRealtime(cardHoldDuration);
             yield return FadeDayCard(0f);
+            SetTransitionHudVisible(true);
             playerController?.SetControlsEnabled(true);
             _transitionRoutine = null;
         }
@@ -121,6 +135,7 @@ namespace DefenderOfIndependence.Level2
         private IEnumerator AdvanceDayRoutine()
         {
             playerController?.SetControlsEnabled(false);
+            SetTransitionHudVisible(false);
             yield return FadeDayCard(1f);
 
             CurrentDay++;
@@ -131,6 +146,7 @@ namespace DefenderOfIndependence.Level2
 
             yield return new WaitForSecondsRealtime(cardHoldDuration);
             yield return FadeDayCard(0f);
+            SetTransitionHudVisible(true);
             playerController?.SetControlsEnabled(true);
             _transitionRoutine = null;
         }
@@ -174,6 +190,15 @@ namespace DefenderOfIndependence.Level2
             if (energyText != null)
             {
                 energyText.text = $"ENERGY  {CurrentEnergy} / {maximumEnergy}";
+            }
+        }
+
+        private void SetTransitionHudVisible(bool visible)
+        {
+            if (transitionHiddenHud == null) return;
+            foreach (GameObject hud in transitionHiddenHud)
+            {
+                if (hud != null) hud.SetActive(visible);
             }
         }
 

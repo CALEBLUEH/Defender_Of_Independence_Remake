@@ -17,6 +17,8 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private TMP_Text[] choiceLabels;
         [SerializeField] private LevelTwoFirstPersonController playerController;
         [SerializeField] private LevelTwoConversationCameraFocus cameraFocus;
+        [SerializeField] private LevelTwoNegotiationMeterController meterController;
+        [SerializeField, Min(100f)] private float choiceSpacing = 440f;
 
         private LevelTwoConversationTrigger.ConversationStep[] _steps;
         private int _stepIndex;
@@ -24,11 +26,30 @@ namespace DefenderOfIndependence.Level2
         private UnityAction[] _choiceActions;
         private bool _isOpen;
         private int _session;
+        private int[] _displayedChoiceIndices;
+        private LevelTwoNegotiationMeterController.MeterChange _pendingMeterChange;
+        private bool _calculateFinalResult;
 
         public bool IsOpen => _isOpen;
         public bool CanBegin => panel != null && sayDialog != null && writer != null && !_isOpen;
         public int CurrentStepIndex => _stepIndex;
         public bool IsWaitingForChoice => _isOpen && choiceRoot != null && choiceRoot.activeSelf;
+        public int DisplayedChoiceCount => _displayedChoiceIndices?.Length ?? 0;
+
+        public int GetDisplayedChoiceSourceIndex(int displayedIndex)
+        {
+            return _displayedChoiceIndices != null && displayedIndex >= 0 && displayedIndex < _displayedChoiceIndices.Length
+                ? _displayedChoiceIndices[displayedIndex]
+                : -1;
+        }
+
+        public float GetDisplayedChoicePositionX(int displayedIndex)
+        {
+            if (choiceButtons == null || displayedIndex < 0 || displayedIndex >= choiceButtons.Length ||
+                choiceButtons[displayedIndex] == null) return float.NaN;
+            RectTransform rect = choiceButtons[displayedIndex].transform as RectTransform;
+            return rect != null ? rect.anchoredPosition.x : float.NaN;
+        }
 
         private void Awake()
         {
@@ -56,7 +77,8 @@ namespace DefenderOfIndependence.Level2
             }
         }
 
-        public bool Begin(LevelTwoConversationTrigger.ConversationStep[] steps, Transform focusTarget = null)
+        public bool Begin(LevelTwoConversationTrigger.ConversationStep[] steps, Transform focusTarget = null,
+            bool calculateFinalResult = false)
         {
             if (!CanBegin || steps == null || steps.Length == 0) return false;
 
@@ -64,6 +86,8 @@ namespace DefenderOfIndependence.Level2
             _stepIndex = 0;
             _lineIndex = 0;
             _isOpen = true;
+            _pendingMeterChange = default;
+            _calculateFinalResult = calculateFinalResult;
             _session++;
             panel.SetActive(true);
             SetChoicesVisible(false);
@@ -79,11 +103,14 @@ namespace DefenderOfIndependence.Level2
             if (!IsWaitingForChoice || _steps == null || _stepIndex >= _steps.Length) return;
 
             LevelTwoConversationTrigger.ConversationChoice[] choices = _steps[_stepIndex].choices;
-            if (choices == null || choiceIndex < 0 || choiceIndex >= choices.Length) return;
+            if (choices == null || _displayedChoiceIndices == null || choiceIndex < 0 ||
+                choiceIndex >= _displayedChoiceIndices.Length) return;
 
             SetChoicesVisible(false);
             playerController?.SetUiCursorActive(false);
-            LevelTwoConversationTrigger.ConversationChoice choice = choices[choiceIndex];
+            int sourceChoiceIndex = _displayedChoiceIndices[choiceIndex];
+            LevelTwoConversationTrigger.ConversationChoice choice = choices[sourceChoiceIndex];
+            _pendingMeterChange += choice.meterChange;
             int session = _session;
             SayLine(choice.responseSpeaker, choice.response, () => CompleteResponse(session));
         }
@@ -95,6 +122,11 @@ namespace DefenderOfIndependence.Level2
 
         public void Close()
         {
+            Close(null);
+        }
+
+        private void Close(System.Action onCameraRestored)
+        {
             if (!_isOpen) return;
             _session++;
             _isOpen = false;
@@ -103,7 +135,13 @@ namespace DefenderOfIndependence.Level2
             sayDialog?.Stop();
             if (panel != null) panel.SetActive(false);
             playerController?.SetUiCursorActive(false);
-            cameraFocus?.Restore(() => playerController?.SetControlsEnabled(true));
+            System.Action restoreComplete = () =>
+            {
+                playerController?.SetControlsEnabled(true);
+                onCameraRestored?.Invoke();
+            };
+            if (cameraFocus != null) cameraFocus.Restore(restoreComplete);
+            else restoreComplete();
         }
 
         private void ShowNextOpeningLine(int session)
@@ -139,11 +177,30 @@ namespace DefenderOfIndependence.Level2
                 return;
             }
 
+            int displayedCount = Mathf.Min(choices.Length, choiceButtons.Length);
+            _displayedChoiceIndices = new int[displayedCount];
+            for (int index = 0; index < displayedCount; index++) _displayedChoiceIndices[index] = index;
+            for (int index = displayedCount - 1; index > 0; index--)
+            {
+                int swapIndex = Random.Range(0, index + 1);
+                (_displayedChoiceIndices[index], _displayedChoiceIndices[swapIndex]) =
+                    (_displayedChoiceIndices[swapIndex], _displayedChoiceIndices[index]);
+            }
+
+            float startX = -(displayedCount - 1) * choiceSpacing * 0.5f;
             for (int index = 0; index < choiceButtons.Length; index++)
             {
-                bool visible = index < choices.Length;
+                bool visible = index < displayedCount;
                 choiceButtons[index].gameObject.SetActive(visible);
-                if (visible && index < choiceLabels.Length) choiceLabels[index].text = choices[index].text;
+                if (!visible) continue;
+                if (index < choiceLabels.Length) choiceLabels[index].text = choices[_displayedChoiceIndices[index]].text;
+                RectTransform rect = choiceButtons[index].transform as RectTransform;
+                if (rect != null)
+                {
+                    Vector2 position = rect.anchoredPosition;
+                    position.x = startX + index * choiceSpacing;
+                    rect.anchoredPosition = position;
+                }
             }
 
             if (choiceRoot != null) choiceRoot.SetActive(true);
@@ -158,11 +215,21 @@ namespace DefenderOfIndependence.Level2
             _lineIndex = 0;
             if (_steps == null || _stepIndex >= _steps.Length)
             {
-                Close();
+                CompleteConversation();
                 return;
             }
 
             ShowNextOpeningLine(session);
+        }
+
+        private void CompleteConversation()
+        {
+            meterController?.ApplyConversationResult(_pendingMeterChange);
+            bool showFinalResult = _calculateFinalResult;
+            System.Action finalAction = showFinalResult && meterController != null
+                ? meterController.BeginFinalResult
+                : null;
+            Close(finalAction);
         }
 
         private void SayLine(string speaker, string text, System.Action onComplete)

@@ -20,6 +20,7 @@ public static class LevelTwoConversationPlayModeSmoke
     private static LevelTwoFirstPersonController _player;
     private static LevelTwoScreenFader _fader;
     private static LevelTwoConfirmationPanel _confirmation;
+    private static LevelTwoNegotiationMeterController _meters;
     private static int _expectedDay;
     private static bool _conversationTested;
     private static bool _conversationStarted;
@@ -29,6 +30,7 @@ public static class LevelTwoConversationPlayModeSmoke
     private static int _confirmationStage;
     private static bool _confirmationActionRan;
     private static int _doorStage;
+    private static bool _preparedForFinalDay;
     private static double _deadline;
 
     static LevelTwoConversationPlayModeSmoke()
@@ -81,12 +83,35 @@ public static class LevelTwoConversationPlayModeSmoke
         _player = UnityEngine.Object.FindAnyObjectByType<LevelTwoFirstPersonController>();
         _fader = UnityEngine.Object.FindAnyObjectByType<LevelTwoScreenFader>();
         _confirmation = UnityEngine.Object.FindAnyObjectByType<LevelTwoConfirmationPanel>();
+        _meters = UnityEngine.Object.FindAnyObjectByType<LevelTwoNegotiationMeterController>();
         if (_day == null || _viewer == null || _triggers.Length != 6 || _doors.Length != 3 ||
-            _interactor == null || _player == null || _fader == null || _confirmation == null)
+            _interactor == null || _player == null || _fader == null || _confirmation == null || _meters == null)
         {
             Fail("The Level 2 dialogue or door components did not load completely.");
             return;
         }
+
+        if (_meters.BritishConfidence != 30 || _meters.DelegationUnity != 30 || _meters.PublicSupport != 30)
+        {
+            Fail("Negotiation meters did not initialize at 30.");
+            return;
+        }
+        _meters.ApplyConversationResult(new LevelTwoNegotiationMeterController.MeterChange
+            { britishConfidence = 35, delegationUnity = 35, publicSupport = 35 });
+        if (_meters.HasPassed)
+        {
+            Fail("A score of exactly 65 incorrectly passed the strict final requirement.");
+            return;
+        }
+        _meters.ResetMeters();
+        _meters.ApplyConversationResult(new LevelTwoNegotiationMeterController.MeterChange
+            { britishConfidence = 36, delegationUnity = 36, publicSupport = 36 });
+        if (!_meters.HasPassed)
+        {
+            Fail("A score of 66 in every category did not pass the final requirement.");
+            return;
+        }
+        _meters.ResetMeters();
 
         EditorApplication.update -= BeginWhenReady;
         _expectedDay = 1;
@@ -94,6 +119,7 @@ public static class LevelTwoConversationPlayModeSmoke
         _conversationStarted = false;
         _doorStage = 0;
         _confirmationStage = 0;
+        _preparedForFinalDay = false;
         _deadline = EditorApplication.timeSinceStartup + 75d;
         EditorApplication.update += Tick;
     }
@@ -156,6 +182,12 @@ public static class LevelTwoConversationPlayModeSmoke
             return;
         }
 
+        if (_expectedDay == 5 && !_preparedForFinalDay)
+        {
+            _meters.ApplyConversationResult(new LevelTwoNegotiationMeterController.MeterChange
+                { britishConfidence = 100, delegationUnity = 100, publicSupport = 100 });
+            _preparedForFinalDay = true;
+        }
         if (!_day.TryAdvanceDay())
         {
             Fail($"Could not advance from Day {_expectedDay}.");
@@ -266,6 +298,12 @@ public static class LevelTwoConversationPlayModeSmoke
                     return;
                 }
 
+                if (!ValidateChoiceLayout(_viewer))
+                {
+                    Fail($"Day {_expectedDay} choices were not a centered, valid randomized mapping.");
+                    return;
+                }
+
                 _viewer.SelectChoice(0);
                 _choicesMade++;
                 _nextDialogueInput = EditorApplication.timeSinceStartup + 0.08d;
@@ -280,6 +318,19 @@ public static class LevelTwoConversationPlayModeSmoke
             return;
         }
 
+        if (_expectedDay == 6)
+        {
+            if (!_meters.IsFinalResultInteractive) return;
+            if (_player.ControlsEnabled || !_player.UiCursorActive || !_meters.IsShowingFinalResult ||
+                !trigger.WasConsumed || _choicesMade != _expectedConversationSteps)
+            {
+                Fail("Day 6 did not fade into an interactive final result while gameplay remained locked.");
+                return;
+            }
+            _conversationTested = true;
+            return;
+        }
+
         if (!_player.ControlsEnabled) return;
         if (_choicesMade != _expectedConversationSteps || _player.UiCursorActive || !trigger.WasConsumed ||
             trigger.TryBegin(_viewer, _day) || !trigger.GetPrompt(_day).StartsWith("NO CONVERSATION"))
@@ -291,9 +342,20 @@ public static class LevelTwoConversationPlayModeSmoke
         _conversationTested = true;
     }
 
+    private static bool ValidateChoiceLayout(LevelTwoConversationViewer viewer)
+    {
+        int count = viewer.DisplayedChoiceCount;
+        if (count < 2 || count > 3) return false;
+        int[] mapping = Enumerable.Range(0, count).Select(viewer.GetDisplayedChoiceSourceIndex).ToArray();
+        if (mapping.Any(index => index < 0 || index >= count) || mapping.Distinct().Count() != count) return false;
+        float first = viewer.GetDisplayedChoicePositionX(0);
+        float last = viewer.GetDisplayedChoicePositionX(count - 1);
+        return !float.IsNaN(first) && !float.IsNaN(last) && Mathf.Abs(first + last) < 0.01f;
+    }
+
     private static void Pass()
     {
-        Debug.Log("LEVEL_TWO_CONVERSATION_PLAYMODE_OK: confirmation animation/pointer, six one-time Fungus line dialogues, horizontal pointer choices, character camera restore, Day 6 three-step finale, daily door payment, free exit/re-entry, final-day lockdown.");
+        Debug.Log("LEVEL_TWO_CONVERSATION_PLAYMODE_OK: meters start at 30, strict >65 pass rule, randomized centered choices including Day 6 two-choice row, scoring, final fade/result lock, confirmations, camera restore, door energy, final-day lockdown.");
         Complete("PASS");
     }
 

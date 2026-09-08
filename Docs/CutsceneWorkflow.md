@@ -2,7 +2,7 @@
 
 ## Current sequence
 
-`Scene_MainMenu` Start button -> `Cutscene_Level1` -> `Scene_Level1`
+`Scene_MainMenu` Start button -> `Cutscene_Level1` -> `Scene_Level1` -> `Cutscene_Level2` -> `Scene_Level2` -> `Cutscene_Level3` -> `Scene_Level3`
 
 The Start button uses `SceneTransitionButton` and fades the screen to black before loading the cutscene. The Level 1 cutscene uses a Fungus Flowchart named `Level 1 Prologue Flowchart`. Each sentence is a standard Fungus `Say` command, followed by the Fungus-compatible `Load Scene Direct` command. The direct command avoids the long unused-asset cleanup performed by Fungus's legacy loader in Unity 6.
 
@@ -28,6 +28,12 @@ Space is read explicitly through Unity's Input System and forwarded to the Fungu
 7. Enable Preserve Aspect for letterboxing, or disable it if the art was authored at the target 16 by 9 resolution.
 
 The backdrop is behind the title and dialogue panel, so no code changes are needed.
+
+## Level 3 cutscene
+
+`Cutscene_Level3` reuses the same Fungus presentation and Space input. Its nine dialogue beats bridge the February 1956 London agreement, Tunku Abdul Rahman's announcement in Malacca, and the transition to the independence ceremony on 31 August 1957. The final prompt reads `PRESS SPACE TO START`, then `Load Scene Direct` opens `Scene_Level3`.
+
+Rebuild it with **Project Tools > Cutscenes > Rebuild Level 3 Cutscene**.
 
 ## Create later cutscenes
 

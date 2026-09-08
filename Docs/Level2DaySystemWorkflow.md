@@ -10,7 +10,11 @@ Level 2 begins on Day 1. The player can approach `NextDayClock` in the main lobb
 4. The player returns to `PlayerInitialSpawnPoint`.
 5. Scheduled character models update before the card fades out.
 
+The Energy display and negotiation meters are hidden for the full transition and restored after the day card closes. They are also ordered behind documents, conversations, confirmations, and result panels.
+
 The clock stops at Day 6. It does not release the mouse pointer; pointer control remains reserved for future dialogue choices.
+
+Before Day 6 can begin, British Confidence, Delegation Unity, and Public Support must each be above 50. If any meter is 50 or lower, Day 5 remains active and the preparation-failed panel offers a Level 2 restart.
 
 ## Daily appointments
 

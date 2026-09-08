@@ -1,0 +1,11 @@
+Model Information:
+* title:	Debate Podium
+* source:	https://sketchfab.com/3d-models/debate-podium-7f6a04fb0a634814a5eaf1a14be44c7f
+* author:	alexsatchell (https://sketchfab.com/alexsatchell)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Debate Podium" (https://sketchfab.com/3d-models/debate-podium-7f6a04fb0a634814a5eaf1a14be44c7f) by alexsatchell (https://sketchfab.com/alexsatchell) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

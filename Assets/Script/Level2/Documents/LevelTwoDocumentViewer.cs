@@ -26,6 +26,7 @@ namespace DefenderOfIndependence.Level2
         private Coroutine _animation;
         private bool _isOpen;
         private bool _isClosing;
+        private System.Action _onClosed;
 
         public bool IsOpen => _isOpen;
 
@@ -68,7 +69,8 @@ namespace DefenderOfIndependence.Level2
             }
         }
 
-        public void Show(string title, string body, bool showDayPrompt, int day, string dayTitle, string recommendation)
+        public void Show(string title, string body, bool showDayPrompt, int day, string dayTitle, string recommendation,
+            System.Action onClosed = null)
         {
             if (panel == null)
             {
@@ -86,6 +88,7 @@ namespace DefenderOfIndependence.Level2
 
             _isOpen = true;
             _isClosing = false;
+            _onClosed = onClosed;
             panel.SetActive(true);
             playerController?.SetControlsEnabled(false);
             playerController?.SetUiCursorActive(true);
@@ -128,6 +131,9 @@ namespace DefenderOfIndependence.Level2
             panel.SetActive(false);
             playerController?.SetUiCursorActive(false);
             playerController?.SetControlsEnabled(true);
+            System.Action callback = _onClosed;
+            _onClosed = null;
+            callback?.Invoke();
         }
 
         private IEnumerator SlideWindow(Vector2 from, Vector2 to, float alphaFrom, float alphaTo,

@@ -89,6 +89,7 @@ namespace DefenderOfIndependence.EditorTools
             LevelTwoDayController dayController = FindUnique<LevelTwoDayController>(scene);
             LevelTwoDoorInteractor interactor = FindUnique<LevelTwoDoorInteractor>(scene);
             LevelTwoFirstPersonController player = FindUnique<LevelTwoFirstPersonController>(scene);
+            LevelTwoNegotiationMeterController meterController = FindUnique<LevelTwoNegotiationMeterController>(scene);
             Camera playerCamera = player.GetComponentInChildren<Camera>(true) ??
                                   throw new InvalidOperationException("The Level 2 player camera is missing.");
             Transform dayHud = FindUniqueTransform(scene, "Day HUD");
@@ -116,13 +117,22 @@ namespace DefenderOfIndependence.EditorTools
 
             LevelTwoDocumentLocation[] documents =
             {
-                ConfigureLocation(scene, "MainLobbyDocumentation(Tutorial)", LevelTwoDocumentLocation.RoomType.MainLobby, LobbyPages),
-                ConfigureLocation(scene, "BritishOfficeNegotiateDocumentation", LevelTwoDocumentLocation.RoomType.BritishOffice, BritishPages),
-                ConfigureLocation(scene, "PlanningRoomDocumentation", LevelTwoDocumentLocation.RoomType.PlanningRoom, PlanningPages),
-                ConfigureLocation(scene, "RadioStationDocumentation", LevelTwoDocumentLocation.RoomType.RadioStation, RadioPages)
+                ConfigureLocation(scene, "MainLobbyDocumentation(Tutorial)", LevelTwoDocumentLocation.RoomType.MainLobby, LobbyPages, meterController),
+                ConfigureLocation(scene, "BritishOfficeNegotiateDocumentation", LevelTwoDocumentLocation.RoomType.BritishOffice, BritishPages, meterController),
+                ConfigureLocation(scene, "PlanningRoomDocumentation", LevelTwoDocumentLocation.RoomType.PlanningRoom, PlanningPages, meterController),
+                ConfigureLocation(scene, "RadioStationDocumentation", LevelTwoDocumentLocation.RoomType.RadioStation, RadioPages, meterController)
             };
 
             SetReference(dayController, "energyText", energyText);
+            Transform meterPanel = dayHud.Find("Level 2 Negotiation Meters") ??
+                                   throw new InvalidOperationException("The Level 2 negotiation meter panel is missing.");
+            Transform dayCard = dayHud.Find("Day Transition Card") ??
+                                throw new InvalidOperationException("The Level 2 Day Transition Card is missing.");
+            MoveBefore(energyText.transform.parent, dayCard);
+            MoveBefore(meterPanel, dayCard);
+            SetReference(dayController, "negotiationMeters", meterController);
+            SetReferenceArray(dayController, "transitionHiddenHud",
+                new[] { energyText.transform.parent.gameObject, meterPanel.gameObject });
             SerializedObject interactorData = new SerializedObject(interactor);
             interactorData.FindProperty("playerCamera").objectReferenceValue = playerCamera;
             interactorData.FindProperty("dayController").objectReferenceValue = dayController;
@@ -140,7 +150,7 @@ namespace DefenderOfIndependence.EditorTools
         }
 
         private static LevelTwoDocumentLocation ConfigureLocation(Scene scene, string name,
-            LevelTwoDocumentLocation.RoomType room, Page[] pages)
+            LevelTwoDocumentLocation.RoomType room, Page[] pages, LevelTwoNegotiationMeterController meterController)
         {
             Transform locationTransform = FindUniqueTransform(scene, name);
             Collider collider = locationTransform.GetComponent<Collider>() ??
@@ -153,6 +163,16 @@ namespace DefenderOfIndependence.EditorTools
             bool isLobby = room == LevelTwoDocumentLocation.RoomType.MainLobby;
             data.FindProperty("reusable").boolValue = isLobby;
             data.FindProperty("energyCost").intValue = isLobby ? 0 : 1;
+            data.FindProperty("meterController").objectReferenceValue = meterController;
+            LevelTwoNegotiationMeterController.MeterType bonusMeter = room switch
+            {
+                LevelTwoDocumentLocation.RoomType.BritishOffice => LevelTwoNegotiationMeterController.MeterType.BritishConfidence,
+                LevelTwoDocumentLocation.RoomType.PlanningRoom => LevelTwoNegotiationMeterController.MeterType.DelegationUnity,
+                LevelTwoDocumentLocation.RoomType.RadioStation => LevelTwoNegotiationMeterController.MeterType.PublicSupport,
+                _ => LevelTwoNegotiationMeterController.MeterType.None
+            };
+            data.FindProperty("documentBonusMeter").enumValueIndex = (int)bonusMeter;
+            data.FindProperty("documentBonusAmount").intValue = 5;
             SerializedProperty pageArray = data.FindProperty("pages");
             pageArray.arraySize = pages.Length;
             for (int i = 0; i < pages.Length; i++)
@@ -280,13 +300,19 @@ namespace DefenderOfIndependence.EditorTools
             LevelTwoDayController day = FindUnique<LevelTwoDayController>(scene);
             SerializedObject interactorData = new SerializedObject(interactor);
             SerializedObject dayData = new SerializedObject(day);
+            LevelTwoDocumentLocation lobby = documents.Single(item => item.IsReusable);
+            LevelTwoDocumentLocation[] paid = documents.Where(item => !item.IsReusable).ToArray();
             if (documents.Length != 4 || documents.Any(item => item == null || item.InteractionCollider == null) ||
                 viewer == null || interactorData.FindProperty("documents").arraySize != 4 ||
-                dayData.FindProperty("energyText").objectReferenceValue == null)
+                dayData.FindProperty("energyText").objectReferenceValue == null ||
+                lobby.DocumentBonusMeter != LevelTwoNegotiationMeterController.MeterType.None ||
+                paid.Any(item => item.DocumentBonusMeter == LevelTwoNegotiationMeterController.MeterType.None ||
+                                 item.DocumentBonusAmount != 5) ||
+                paid.Select(item => item.DocumentBonusMeter).Distinct().Count() != 3)
             {
                 throw new InvalidOperationException("Level 2 documentation wiring is incomplete.");
             }
-            Debug.Log("LEVEL2_DOCUMENTATION_VALID lobby=free+reusable historicalPages=9 random=without-replacement pointer=enabled close=X/C/Escape");
+            Debug.Log("LEVEL2_DOCUMENTATION_VALID lobby=free+reusable historicalPages=9 bonuses=BC/DU/PS+5-per-read random=without-replacement pointer=enabled close=X/C/Escape");
         }
 
         private static T FindUnique<T>(Scene scene) where T : Component
@@ -361,11 +387,28 @@ namespace DefenderOfIndependence.EditorTools
             if (child != null) UnityEngine.Object.DestroyImmediate(child.gameObject);
         }
 
+        private static void MoveBefore(Transform item, Transform reference)
+        {
+            if (item == null || reference == null || item.parent != reference.parent) return;
+            item.SetSiblingIndex(reference.GetSiblingIndex());
+        }
+
         private static void SetReference(UnityEngine.Object target, string field, UnityEngine.Object value)
         {
             SerializedObject data = new SerializedObject(target);
             SerializedProperty property = data.FindProperty(field) ?? throw new InvalidOperationException($"Missing {field} on {target.name}.");
             property.objectReferenceValue = value;
+            data.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetReferenceArray<T>(UnityEngine.Object target, string field, T[] values)
+            where T : UnityEngine.Object
+        {
+            SerializedObject data = new SerializedObject(target);
+            SerializedProperty array = data.FindProperty(field) ??
+                                       throw new InvalidOperationException($"Missing {field} on {target.name}.");
+            array.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++) array.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
             data.ApplyModifiedPropertiesWithoutUndo();
         }
     }

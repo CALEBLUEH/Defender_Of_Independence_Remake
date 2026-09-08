@@ -16,9 +16,13 @@ public static class LevelTwoDayPlayModeSmoke
     private static LevelTwoNextDayClock _clock;
     private static LevelTwoFirstPersonController _player;
     private static LevelTwoScheduledCharacter[] _characters;
+    private static LevelTwoNegotiationMeterController _meters;
+    private static GameObject _energyHud;
+    private static GameObject _meterHud;
     private static int _expectedDay;
     private static double _deadline;
     private static bool _advanceRequested;
+    private static bool _preparedForFinalDay;
 
     static LevelTwoDayPlayModeSmoke()
     {
@@ -77,7 +81,11 @@ public static class LevelTwoDayPlayModeSmoke
         _clock = UnityEngine.Object.FindFirstObjectByType<LevelTwoNextDayClock>();
         _player = UnityEngine.Object.FindFirstObjectByType<LevelTwoFirstPersonController>();
         _characters = UnityEngine.Object.FindObjectsByType<LevelTwoScheduledCharacter>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        if (_controller == null || _clock == null || _player == null || _characters.Length != 6)
+        _meters = UnityEngine.Object.FindFirstObjectByType<LevelTwoNegotiationMeterController>();
+        Transform[] allTransforms = UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        _energyHud = allTransforms.Single(item => item.name == "Energy Display").gameObject;
+        _meterHud = allTransforms.Single(item => item.name == "Level 2 Negotiation Meters").gameObject;
+        if (_controller == null || _clock == null || _player == null || _meters == null || _characters.Length != 6)
         {
             Fail("Play Mode scene did not load all Level 2 day-system components.");
             return;
@@ -86,6 +94,7 @@ public static class LevelTwoDayPlayModeSmoke
         EditorApplication.update -= BeginWhenReady;
         _expectedDay = 1;
         _advanceRequested = false;
+        _preparedForFinalDay = false;
         _deadline = EditorApplication.timeSinceStartup + 35d;
         EditorApplication.update += Tick;
     }
@@ -100,6 +109,16 @@ public static class LevelTwoDayPlayModeSmoke
 
         if (_controller.IsTransitioning)
         {
+            if (_energyHud.activeSelf || _meterHud.activeSelf)
+            {
+                Fail("Energy or negotiation meters remained visible during a day transition.");
+            }
+            return;
+        }
+
+        if (!_energyHud.activeSelf || !_meterHud.activeSelf)
+        {
+            Fail("Energy or negotiation meters did not return after the day transition.");
             return;
         }
 
@@ -133,6 +152,12 @@ public static class LevelTwoDayPlayModeSmoke
 
         if (!_advanceRequested)
         {
+            if (_expectedDay == 5 && !_preparedForFinalDay)
+            {
+                _meters.ApplyConversationResult(new LevelTwoNegotiationMeterController.MeterChange
+                    { britishConfidence = 100, delegationUnity = 100, publicSupport = 100 });
+                _preparedForFinalDay = true;
+            }
             if (!_clock.TryUse())
             {
                 Fail($"NextDayClock refused to advance from Day {_expectedDay}.");
@@ -172,7 +197,7 @@ public static class LevelTwoDayPlayModeSmoke
 
     private static void Pass()
     {
-        Debug.Log("LEVEL_TWO_DAY_PLAYMODE_OK: advanced Days 1-6, returned to lobby spawn, matched all character schedules, and stopped at Day 6.");
+        Debug.Log("LEVEL_TWO_DAY_PLAYMODE_OK: advanced Days 1-6 with qualifying meters, hid persistent HUD during every day card, restored HUD afterward, returned to lobby spawn, matched schedules, and stopped at Day 6.");
         Complete("PASS");
     }
 

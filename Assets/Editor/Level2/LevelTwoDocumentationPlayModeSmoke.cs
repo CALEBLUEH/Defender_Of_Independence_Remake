@@ -15,6 +15,7 @@ public static class LevelTwoDocumentationPlayModeSmoke
     private static LevelTwoDayController _day;
     private static LevelTwoDocumentViewer _viewer;
     private static LevelTwoFirstPersonController _player;
+    private static LevelTwoNegotiationMeterController _meters;
     private static LevelTwoDocumentLocation _lobby;
     private static LevelTwoDocumentLocation[] _paidLocations;
     private static int _phase;
@@ -22,6 +23,7 @@ public static class LevelTwoDocumentationPlayModeSmoke
     private static int _paidLocationIndex;
     private static int _paidPage;
     private static int _expectedEnergy;
+    private static int _bonusBefore;
 
     static LevelTwoDocumentationPlayModeSmoke()
     {
@@ -80,8 +82,9 @@ public static class LevelTwoDocumentationPlayModeSmoke
 
         _viewer = UnityEngine.Object.FindAnyObjectByType<LevelTwoDocumentViewer>();
         _player = UnityEngine.Object.FindAnyObjectByType<LevelTwoFirstPersonController>();
+        _meters = UnityEngine.Object.FindAnyObjectByType<LevelTwoNegotiationMeterController>();
         LevelTwoDocumentLocation[] locations = UnityEngine.Object.FindObjectsByType<LevelTwoDocumentLocation>(FindObjectsInactive.Include);
-        if (_viewer == null || _player == null || locations.Length != 4)
+        if (_viewer == null || _player == null || _meters == null || locations.Length != 4)
         {
             Fail("The scene did not load one viewer, one player, and four document locations.");
             return;
@@ -91,6 +94,7 @@ public static class LevelTwoDocumentationPlayModeSmoke
         {
             _lobby = locations.Single(item => item.IsReusable);
             _paidLocations = locations.Where(item => !item.IsReusable).OrderBy(item => item.name).ToArray();
+            _meters.ResetMeters();
             _day.ResetToStartingDay();
             _phase = 0;
         }
@@ -140,6 +144,7 @@ public static class LevelTwoDocumentationPlayModeSmoke
             if (_paidLocationIndex >= _paidLocations.Length) { Pass(); return; }
             if (_paidPage == 0) _day.ResetToStartingDay();
             LevelTwoDocumentLocation location = _paidLocations[_paidLocationIndex];
+            _bonusBefore = GetBonus(location.DocumentBonusMeter);
             _expectedEnergy = _day.CurrentEnergy - 1;
             if (!location.TryExamine(_viewer, _day) || !_viewer.IsOpen || _player.ControlsEnabled ||
                 location.RemainingCount != 2 - _paidPage || _day.CurrentEnergy != _expectedEnergy)
@@ -160,6 +165,12 @@ public static class LevelTwoDocumentationPlayModeSmoke
                 Fail($"{_paidLocations[_paidLocationIndex].name} did not restore gameplay after its slide-down.");
                 return;
             }
+            LevelTwoDocumentLocation current = _paidLocations[_paidLocationIndex];
+            if (GetBonus(current.DocumentBonusMeter) != _bonusBefore + current.DocumentBonusAmount)
+            {
+                Fail($"{current.name} did not grant its +{current.DocumentBonusAmount} document bonus after closing.");
+                return;
+            }
 
             _paidPage++;
             if (_paidPage < 3) { _phase = 2; return; }
@@ -177,9 +188,26 @@ public static class LevelTwoDocumentationPlayModeSmoke
         }
     }
 
+    private static int GetBonus(LevelTwoNegotiationMeterController.MeterType meter)
+    {
+        return meter switch
+        {
+            LevelTwoNegotiationMeterController.MeterType.BritishConfidence => _meters.BritishConfidenceBonus,
+            LevelTwoNegotiationMeterController.MeterType.DelegationUnity => _meters.DelegationUnityBonus,
+            LevelTwoNegotiationMeterController.MeterType.PublicSupport => _meters.PublicSupportBonus,
+            _ => 0
+        };
+    }
+
     private static void Pass()
     {
-        Debug.Log("LEVEL_TWO_DOCUMENTATION_PLAYMODE_OK: free reusable lobby guide, nine one-time historical pages, pointer/scroll UI, rise-up/slide-down lifecycle, energy reset, exhausted prompts.");
+        if (_meters.BritishConfidenceBonus != 15 || _meters.DelegationUnityBonus != 15 ||
+            _meters.PublicSupportBonus != 15)
+        {
+            Fail("Reading all nine historical documents did not stack three +5 bonuses per meter.");
+            return;
+        }
+        Debug.Log("LEVEL_TWO_DOCUMENTATION_PLAYMODE_OK: free reusable lobby guide, nine one-time historical pages, three stackable +5 preparation bonuses per meter, pointer/scroll UI, rise-up/slide-down lifecycle, energy reset, exhausted prompts.");
         Complete("PASS");
     }
 
@@ -214,6 +242,7 @@ public static class LevelTwoDocumentationPlayModeSmoke
         _day = null;
         _viewer = null;
         _player = null;
+        _meters = null;
         _lobby = null;
         _paidLocations = null;
         if (Application.isBatchMode) EditorApplication.Exit(passed ? 0 : 1);

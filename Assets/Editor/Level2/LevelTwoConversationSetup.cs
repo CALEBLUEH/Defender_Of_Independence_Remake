@@ -18,6 +18,9 @@ namespace DefenderOfIndependence.EditorTools
         private const string ScenePath = "Assets/Scene/Scene_Level2.unity";
         private const string PanelName = "Level 2 Conversation Panel";
         private const string ConfirmationPanelName = "Level 2 Confirmation Panel";
+        private const string MeterPanelName = "Level 2 Negotiation Meters";
+        private const string FeedbackPanelName = "Level 2 Action Feedback";
+        private const string ResultPanelName = "Level 2 Final Result";
         private const string TitleFontPath = "Assets/Font/AudioWide/Audiowide-Regular SDF.asset";
         private const string BodyFontPath = "Assets/Plugins/Fungus/Thirdparty/TextMeshPro/Resources/Fonts & Materials/LiberationSans SDF.asset";
         private const string PanelAsset = "Assets/ThirdParty/Kenney/UI Pack RPG Expansion/panel_beige.png";
@@ -28,9 +31,16 @@ namespace DefenderOfIndependence.EditorTools
             public readonly string Text;
             public readonly string ResponseSpeaker;
             public readonly string Response;
-            public ChoiceData(string text, string responseSpeaker, string response)
+            public readonly int BritishConfidence;
+            public readonly int DelegationUnity;
+            public readonly int PublicSupport;
+            public ChoiceData(string text, string responseSpeaker, string response,
+                int britishConfidence = 0, int delegationUnity = 0, int publicSupport = 0)
             {
                 Text = text; ResponseSpeaker = responseSpeaker; Response = response;
+                BritishConfidence = britishConfidence;
+                DelegationUnity = delegationUnity;
+                PublicSupport = publicSupport;
             }
         }
 
@@ -87,12 +97,52 @@ namespace DefenderOfIndependence.EditorTools
 
             DestroyChild(dayHud, PanelName);
             DestroyChild(dayHud, ConfirmationPanelName);
+            DestroyChild(dayHud, MeterPanelName);
+            DestroyChild(dayHud, FeedbackPanelName);
+            DestroyChild(dayHud, ResultPanelName);
             CreateConversationPanel(dayHud, out GameObject panel, out SayDialog sayDialog, out Writer writer,
                 out DialogInput dialogInput, out GameObject choiceRoot, out Button[] choiceButtons,
                 out TMP_Text[] choiceLabels);
             CreateConfirmationPanel(dayHud, out GameObject confirmationPanelObject, out RectTransform confirmationWindow,
                 out CanvasGroup confirmationWindowGroup, out TMP_Text confirmationTitle, out TMP_Text confirmationMessage,
                 out GameObject warningRoot, out TMP_Text warningText, out Button confirmButton, out Button cancelButton);
+            CreateNegotiationMeterPanel(dayHud, out Slider britishSlider, out Slider delegationSlider,
+                out Slider publicSlider, out TMP_Text britishValue, out TMP_Text delegationValue, out TMP_Text publicValue);
+            GameObject meterPanelObject = britishSlider.transform.parent.gameObject;
+            CreateFeedbackPanel(dayHud, out CanvasGroup feedbackGroup, out TMP_Text feedbackTitle,
+                out TMP_Text feedbackBody);
+            CreateFinalResultPanel(dayHud, out CanvasGroup finalOverlay, out CanvasGroup finalContent,
+                out TMP_Text finalHeading, out TMP_Text finalBody, out Button continueButton, out Button restartButton);
+
+            LevelTwoNegotiationMeterController meterController =
+                dayController.GetComponent<LevelTwoNegotiationMeterController>() ??
+                dayController.gameObject.AddComponent<LevelTwoNegotiationMeterController>();
+            SetReference(meterController, "britishConfidenceSlider", britishSlider);
+            SetReference(meterController, "delegationUnitySlider", delegationSlider);
+            SetReference(meterController, "publicSupportSlider", publicSlider);
+            SetReference(meterController, "britishConfidenceValue", britishValue);
+            SetReference(meterController, "delegationUnityValue", delegationValue);
+            SetReference(meterController, "publicSupportValue", publicValue);
+            SetReference(meterController, "feedbackPanel", feedbackGroup);
+            SetReference(meterController, "feedbackTitle", feedbackTitle);
+            SetReference(meterController, "feedbackBody", feedbackBody);
+            SetReference(meterController, "finalOverlay", finalOverlay);
+            SetReference(meterController, "finalContent", finalContent);
+            SetReference(meterController, "finalHeading", finalHeading);
+            SetReference(meterController, "finalBody", finalBody);
+            SetReference(meterController, "continueButton", continueButton);
+            SetReference(meterController, "restartButton", restartButton);
+            SetReference(meterController, "playerController", player);
+            SetReference(dayController, "negotiationMeters", meterController);
+
+            Transform energyDisplay = dayHud.Find("Energy Display") ??
+                                      throw new InvalidOperationException("The Level 2 Energy Display is missing.");
+            Transform dayCard = dayHud.Find("Day Transition Card") ??
+                                throw new InvalidOperationException("The Level 2 Day Transition Card is missing.");
+            MoveBefore(energyDisplay, dayCard);
+            MoveBefore(meterPanelObject.transform, dayCard);
+            SetReferenceArray(dayController, "transitionHiddenHud",
+                new[] { energyDisplay.gameObject, meterPanelObject });
 
             LevelTwoConversationCameraFocus cameraFocus = dayController.GetComponent<LevelTwoConversationCameraFocus>() ??
                                                           dayController.gameObject.AddComponent<LevelTwoConversationCameraFocus>();
@@ -109,6 +159,7 @@ namespace DefenderOfIndependence.EditorTools
             SetReferenceArray(viewer, "choiceLabels", choiceLabels);
             SetReference(viewer, "playerController", player);
             SetReference(viewer, "cameraFocus", cameraFocus);
+            SetReference(viewer, "meterController", meterController);
 
             LevelTwoConfirmationPanel confirmationPanel = dayController.GetComponent<LevelTwoConfirmationPanel>() ??
                                                           dayController.gameObject.AddComponent<LevelTwoConfirmationPanel>();
@@ -141,6 +192,8 @@ namespace DefenderOfIndependence.EditorTools
             ConfigureFinalDayDoor(scene, "TunkuAbdulRahmanDoor", false);
             ConfigureFinalDayDoor(scene, "RadioStationDoor", false);
             ConfigureFinalDayDoor(scene, "AlanLennox-BoydDoor", true);
+
+            WireExistingDocuments(scene, meterController);
 
             panel.SetActive(false);
             confirmationPanelObject.SetActive(false);
@@ -187,6 +240,7 @@ namespace DefenderOfIndependence.EditorTools
             data.FindProperty("interactionCollider").objectReferenceValue = collider;
             data.FindProperty("energyCost").intValue = 1;
             data.FindProperty("cameraFocusTarget").objectReferenceValue = focusTarget;
+            data.FindProperty("calculateFinalResultOnComplete").boolValue = day == 6;
             SerializedProperty stepArray = data.FindProperty("steps");
             stepArray.arraySize = steps.Length;
             for (int stepIndex = 0; stepIndex < steps.Length; stepIndex++)
@@ -213,6 +267,10 @@ namespace DefenderOfIndependence.EditorTools
                     choice.FindPropertyRelative("text").stringValue = sourceChoice.Text;
                     choice.FindPropertyRelative("responseSpeaker").stringValue = sourceChoice.ResponseSpeaker;
                     choice.FindPropertyRelative("response").stringValue = sourceChoice.Response;
+                    SerializedProperty meterChange = choice.FindPropertyRelative("meterChange");
+                    meterChange.FindPropertyRelative("britishConfidence").intValue = sourceChoice.BritishConfidence;
+                    meterChange.FindPropertyRelative("delegationUnity").intValue = sourceChoice.DelegationUnity;
+                    meterChange.FindPropertyRelative("publicSupport").intValue = sourceChoice.PublicSupport;
                 }
             }
             data.ApplyModifiedPropertiesWithoutUndo();
@@ -417,29 +475,155 @@ namespace DefenderOfIndependence.EditorTools
             return button;
         }
 
+        private static void CreateNegotiationMeterPanel(Transform parent, out Slider britishSlider,
+            out Slider delegationSlider, out Slider publicSlider, out TMP_Text britishValue,
+            out TMP_Text delegationValue, out TMP_Text publicValue)
+        {
+            TMP_FontAsset titleFont = Load<TMP_FontAsset>(TitleFontPath);
+            TMP_FontAsset bodyFont = Load<TMP_FontAsset>(BodyFontPath);
+            Image panel = CreateImage(parent, MeterPanelName, null, new Color(0.025f, 0.035f, 0.055f, 0.92f));
+            SetRect(panel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(230f, -232f), new Vector2(420f, 270f));
+
+            TMP_Text heading = CreateText(panel.transform, "Heading", titleFont, "NEGOTIATION STATUS", 21f,
+                new Color(0.95f, 0.82f, 0.43f), TextAlignmentOptions.Center);
+            SetRect(heading.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(380f, 38f));
+
+            CreateMeterRow(panel.transform, "British Confidence", bodyFont, -80f, new Color(0.48f, 0.68f, 0.92f), out britishSlider, out britishValue);
+            CreateMeterRow(panel.transform, "Delegation Unity", bodyFont, -148f, new Color(0.92f, 0.73f, 0.28f), out delegationSlider, out delegationValue);
+            CreateMeterRow(panel.transform, "Public Support", bodyFont, -216f, new Color(0.45f, 0.82f, 0.52f), out publicSlider, out publicValue);
+        }
+
+        private static void CreateMeterRow(Transform parent, string label, TMP_FontAsset font, float y, Color fillColor,
+            out Slider slider, out TMP_Text valueText)
+        {
+            TMP_Text title = CreateText(parent, label + " Label", font, label.ToUpperInvariant(), 17f,
+                new Color(0.92f, 0.92f, 0.9f), TextAlignmentOptions.Left);
+            SetRect(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(138f, y), new Vector2(270f, 30f));
+
+            Image background = CreateImage(parent, label + " Slider", null, new Color(0.12f, 0.15f, 0.2f, 1f));
+            SetRect(background.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(183f, y - 27f), new Vector2(330f, 18f));
+            Image fill = CreateImage(background.transform, "Fill", null, fillColor);
+            Stretch(fill.rectTransform, new Vector2(2f, 2f), new Vector2(-2f, -2f));
+
+            slider = background.gameObject.AddComponent<Slider>();
+            slider.fillRect = fill.rectTransform;
+            slider.targetGraphic = fill;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 100f;
+            slider.wholeNumbers = true;
+            slider.value = 30f;
+            slider.interactable = false;
+
+            valueText = CreateText(parent, label + " Value", font, "30", 18f, Color.white, TextAlignmentOptions.Center);
+            SetRect(valueText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(376f, y - 27f), new Vector2(54f, 30f));
+        }
+
+        private static void CreateFeedbackPanel(Transform parent, out CanvasGroup group, out TMP_Text title,
+            out TMP_Text body)
+        {
+            TMP_FontAsset titleFont = Load<TMP_FontAsset>(TitleFontPath);
+            TMP_FontAsset bodyFont = Load<TMP_FontAsset>(BodyFontPath);
+            Sprite panelSprite = Load<Sprite>(PanelAsset);
+            Image panel = CreateImage(parent, FeedbackPanelName, panelSprite, new Color(0.86f, 0.79f, 0.63f, 0.98f));
+            panel.type = Image.Type.Sliced;
+            SetRect(panel.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-300f, 115f), new Vector2(540f, 190f));
+            panel.raycastTarget = false;
+            group = panel.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+
+            title = CreateText(panel.transform, "Title", titleFont, "ACTION RESULT", 22f,
+                new Color(0.19f, 0.105f, 0.045f), TextAlignmentOptions.Center);
+            SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -38f), new Vector2(480f, 40f));
+            body = CreateText(panel.transform, "Body", bodyFont, string.Empty, 20f,
+                new Color(0.14f, 0.075f, 0.03f), TextAlignmentOptions.Center);
+            SetRect(body.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -20f), new Vector2(480f, 105f));
+        }
+
+        private static void CreateFinalResultPanel(Transform parent, out CanvasGroup overlayGroup,
+            out CanvasGroup contentGroup, out TMP_Text heading, out TMP_Text body, out Button continueButton,
+            out Button restartButton)
+        {
+            TMP_FontAsset titleFont = Load<TMP_FontAsset>(TitleFontPath);
+            TMP_FontAsset bodyFont = Load<TMP_FontAsset>(BodyFontPath);
+            Sprite panelSprite = Load<Sprite>(PanelAsset);
+            Sprite buttonSprite = Load<Sprite>(ButtonAsset);
+
+            Image overlay = CreateImage(parent, ResultPanelName, null, Color.black);
+            Stretch(overlay.rectTransform, Vector2.zero, Vector2.zero);
+            overlay.raycastTarget = true;
+            overlayGroup = overlay.gameObject.AddComponent<CanvasGroup>();
+            overlayGroup.alpha = 0f;
+            overlayGroup.interactable = false;
+            overlayGroup.blocksRaycasts = false;
+
+            Image window = CreateImage(overlay.transform, "Result Window", panelSprite, new Color(0.86f, 0.79f, 0.63f, 1f));
+            window.type = Image.Type.Sliced;
+            SetRect(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(980f, 580f));
+            contentGroup = window.gameObject.AddComponent<CanvasGroup>();
+            contentGroup.alpha = 0f;
+            contentGroup.interactable = false;
+            contentGroup.blocksRaycasts = false;
+
+            heading = CreateText(window.transform, "Heading", titleFont, "NEGOTIATION RESULT", 39f,
+                new Color(0.19f, 0.105f, 0.045f), TextAlignmentOptions.Center);
+            SetRect(heading.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(850f, 72f));
+            body = CreateText(window.transform, "Result Details", bodyFont, string.Empty, 27f,
+                new Color(0.14f, 0.075f, 0.03f), TextAlignmentOptions.Center);
+            SetRect(body.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 18f), new Vector2(820f, 285f));
+            body.textWrappingMode = TextWrappingModes.Normal;
+
+            continueButton = CreateConfirmationButton(window.transform, "Continue to Level 3", "CONTINUE", buttonSprite,
+                titleFont, new Vector2(0f, 70f));
+            restartButton = CreateConfirmationButton(window.transform, "Restart Level 2", "RESTART LEVEL", buttonSprite,
+                titleFont, new Vector2(0f, 70f));
+        }
+
+        private static void WireExistingDocuments(Scene scene, LevelTwoNegotiationMeterController meterController)
+        {
+            foreach (LevelTwoDocumentLocation document in scene.GetRootGameObjects()
+                         .SelectMany(root => root.GetComponentsInChildren<LevelTwoDocumentLocation>(true)))
+            {
+                SerializedObject data = new SerializedObject(document);
+                data.FindProperty("meterController").objectReferenceValue = meterController;
+                LevelTwoNegotiationMeterController.MeterType meter = document.Room switch
+                {
+                    LevelTwoDocumentLocation.RoomType.BritishOffice => LevelTwoNegotiationMeterController.MeterType.BritishConfidence,
+                    LevelTwoDocumentLocation.RoomType.PlanningRoom => LevelTwoNegotiationMeterController.MeterType.DelegationUnity,
+                    LevelTwoDocumentLocation.RoomType.RadioStation => LevelTwoNegotiationMeterController.MeterType.PublicSupport,
+                    _ => LevelTwoNegotiationMeterController.MeterType.None
+                };
+                data.FindProperty("documentBonusMeter").enumValueIndex = (int)meter;
+                data.FindProperty("documentBonusAmount").intValue = 5;
+                data.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
         private static StepData[] DayOne() => new[]
         {
             new StepData("TUNKU ABDUL RAHMAN",
                 "Before we face the British government, our own delegation must agree on what we are asking for.",
-                new ChoiceData("We should agree on one clear objective: self-government leading to independence, while preparing answers on security and administration.", "TUNKU ABDUL RAHMAN", "Good. Independence is our objective, but a united delegation must also show that we understand the responsibilities that come with governing a country. We cannot arrive in London with only a demand; we must arrive with a plan."),
-                new ChoiceData("Demand immediate independence and refuse to discuss any British concerns.", "TUNKU ABDUL RAHMAN", "Determination is important, but refusing every discussion would make the conference pointless. Some may applaud a stronger demand, yet we still need an agreement that can actually move Malaya toward independence."),
-                new ChoiceData("Let every delegate present a different position.", "TUNKU ABDUL RAHMAN", "Then we would appear divided before negotiations have even begun. We may disagree during preparation, but once we enter the conference we must understand what we are trying to achieve together."))
+                new ChoiceData("We should agree on one clear objective: self-government leading to independence, while preparing answers on security and administration.", "TUNKU ABDUL RAHMAN", "Good. Independence is our objective, but a united delegation must also show that we understand the responsibilities that come with governing a country. We cannot arrive in London with only a demand; we must arrive with a plan.", 5, 15),
+                new ChoiceData("Demand immediate independence and refuse to discuss any British concerns.", "TUNKU ABDUL RAHMAN", "Determination is important, but refusing every discussion would make the conference pointless. Some may applaud a stronger demand, yet we still need an agreement that can actually move Malaya toward independence.", -15, -5, 10),
+                new ChoiceData("Let every delegate present a different position.", "TUNKU ABDUL RAHMAN", "Then we would appear divided before negotiations have even begun. We may disagree during preparation, but once we enter the conference we must understand what we are trying to achieve together.", -5, -15))
         };
 
         private static StepData[] DayTwo() => new[]
         {
             new StepData("ALAN LENNOX-BOYD", "If Malaya becomes self-governing, how will its government maintain stability and security?",
-                new ChoiceData("Responsibility should increasingly pass to Malayan ministers while organized institutions continue to handle internal security.", "ALAN LENNOX-BOYD", "That is a more practical position. Greater responsibility must be matched by institutions capable of carrying it. A planned transfer offers stronger grounds for confidence than simply assuming existing security concerns will disappear."),
-                new ChoiceData("Malaya has functioning institutions and we are prepared to take greater responsibility gradually.", "ALAN LENNOX-BOYD", "That is encouraging, but we will require more detail. Readiness must be demonstrated through specific arrangements, especially while the Emergency continues."),
-                new ChoiceData("Security will solve itself after independence.", "ALAN LENNOX-BOYD", "Independence cannot make an existing security problem disappear. A future government must be prepared to inherit difficult responsibilities, not merely the authority that accompanies them."))
+                new ChoiceData("Responsibility should increasingly pass to Malayan ministers while organized institutions continue to handle internal security.", "ALAN LENNOX-BOYD", "That is a more practical position. Greater responsibility must be matched by institutions capable of carrying it. A planned transfer offers stronger grounds for confidence than simply assuming existing security concerns will disappear.", 15, 5),
+                new ChoiceData("Malaya has functioning institutions and we are prepared to take greater responsibility gradually.", "ALAN LENNOX-BOYD", "That is encouraging, but we will require more detail. Readiness must be demonstrated through specific arrangements, especially while the Emergency continues.", 10),
+                new ChoiceData("Security will solve itself after independence.", "ALAN LENNOX-BOYD", "Independence cannot make an existing security problem disappear. A future government must be prepared to inherit difficult responsibilities, not merely the authority that accompanies them.", -15))
         };
 
         private static StepData[] DayThree() => new[]
         {
             new StepData("ALAN LENNOX-BOYD", "An independent government must also support its administration and economy. How will Malaya approach this responsibility?",
-                new ChoiceData("Take responsibility for national finances while maintaining economic stability and encouraging continued investment.", "ALAN LENNOX-BOYD", "That approach recognizes both political responsibility and economic continuity. Greater control over finance will carry obligations, but a stable transition can benefit Malaya after independence."),
-                new ChoiceData("Continue allowing Britain to control Malaya's finances indefinitely.", "ALAN LENNOX-BOYD", "Such an arrangement might reduce immediate uncertainty, but I question whether it is compatible with the full self-government your delegation is requesting."),
-                new ChoiceData("Immediately abandon existing financial arrangements without replacement.", "ALAN LENNOX-BOYD", "Replacing one system without preparing another would create uncertainty. Independence requires the ability to administer public finances, not the absence of financial administration."))
+                new ChoiceData("Take responsibility for national finances while maintaining economic stability and encouraging continued investment.", "ALAN LENNOX-BOYD", "That approach recognizes both political responsibility and economic continuity. Greater control over finance will carry obligations, but a stable transition can benefit Malaya after independence.", 15, 0, 5),
+                new ChoiceData("Continue allowing Britain to control Malaya's finances indefinitely.", "ALAN LENNOX-BOYD", "Such an arrangement might reduce immediate uncertainty, but I question whether it is compatible with the full self-government your delegation is requesting.", 5, -10, -15),
+                new ChoiceData("Immediately abandon existing financial arrangements without replacement.", "ALAN LENNOX-BOYD", "Replacing one system without preparing another would create uncertainty. Independence requires the ability to administer public finances, not the absence of financial administration.", -15))
         };
 
         private static StepData[] DayFour() => new[]
@@ -449,17 +633,17 @@ namespace DefenderOfIndependence.EditorTools
                     new LineData("RADIO HOST", "We are live. Citizens across Malaya want to know what the delegation's negotiations mean for them."),
                     new LineData("CITIZEN", "Why should the people trust negotiation rather than confrontation?")
                 },
-                new ChoiceData("Independence must be pursued through unity, negotiation and peaceful political action.", "CITIZEN", "Then the people must remain part of that effort. If negotiation is to represent Malaya, the public must understand what is being negotiated and why unity matters."),
-                new ChoiceData("There is no need for public participation; leave everything to the politicians.", "CITIZEN", "But independence concerns the future of everyone who lives here. If citizens are told their support does not matter, why should they feel represented by the negotiations?"),
-                new ChoiceData("Only confrontation can achieve independence.", "CITIZEN", "Some listeners may find that message forceful, but others fear what confrontation could mean for Malaya's stability and unity."))
+                new ChoiceData("Independence must be pursued through unity, negotiation and peaceful political action.", "CITIZEN", "Then the people must remain part of that effort. If negotiation is to represent Malaya, the public must understand what is being negotiated and why unity matters.", 0, 5, 15),
+                new ChoiceData("There is no need for public participation; leave everything to the politicians.", "CITIZEN", "But independence concerns the future of everyone who lives here. If citizens are told their support does not matter, why should they feel represented by the negotiations?", 0, 0, -15),
+                new ChoiceData("Only confrontation can achieve independence.", "CITIZEN", "Some listeners may find that message forceful, but others fear what confrontation could mean for Malaya's stability and unity.", -20, -10, 5))
         };
 
         private static StepData[] DayFive() => new[]
         {
             new StepData("TUNKU ABDUL RAHMAN", "Britain wants future defense cooperation even after Malaya becomes self-governing. Some members of the delegation worry that agreeing to cooperation could weaken our independence. What should our position be?",
-                new ChoiceData("Separate temporary cooperation from permanent political control. Independence remains the objective.", "TUNKU ABDUL RAHMAN", "Exactly. Cooperation and political control are not the same thing. We can discuss arrangements that address practical defense concerns without abandoning the principle that Malaya must govern itself."),
-                new ChoiceData("Reject every form of cooperation.", "TUNKU ABDUL RAHMAN", "That position is clear, but perhaps too absolute. Independence means making our own decisions; it does not require refusing every future agreement with another country."),
-                new ChoiceData("Let Britain decide.", "TUNKU ABDUL RAHMAN", "Then what have we come here to negotiate? If Malaya is to become independent, Malayan representatives must be prepared to take responsibility for decisions that affect the country."))
+                new ChoiceData("Separate temporary cooperation from permanent political control. Independence remains the objective.", "TUNKU ABDUL RAHMAN", "Exactly. Cooperation and political control are not the same thing. We can discuss arrangements that address practical defense concerns without abandoning the principle that Malaya must govern itself.", 5, 15),
+                new ChoiceData("Reject every form of cooperation.", "TUNKU ABDUL RAHMAN", "That position is clear, but perhaps too absolute. Independence means making our own decisions; it does not require refusing every future agreement with another country.", -15, 5),
+                new ChoiceData("Let Britain decide.", "TUNKU ABDUL RAHMAN", "Then what have we come here to negotiate? If Malaya is to become independent, Malayan representatives must be prepared to take responsibility for decisions that affect the country.", 0, -20, -10))
         };
 
         private static StepData[] DaySix() => new[]
@@ -470,20 +654,20 @@ namespace DefenderOfIndependence.EditorTools
                     new LineData("TUNKU ABDUL RAHMAN", "The Federation delegation is ready."),
                     new LineData("ALAN LENNOX-BOYD", "Independence requires a constitution accepted by Malaya's institutions. How should that be prepared?")
                 },
-                new ChoiceData("Establish an independent constitutional commission and consult the communities of Malaya.", "ALAN LENNOX-BOYD", "That provides a structured way forward. The Commission can examine the Federation's constitutional arrangements and make recommendations before independence."),
-                new ChoiceData("Keep the existing constitutional system permanently unchanged.", "ALAN LENNOX-BOYD", "Then full self-government would be difficult to achieve. Independence requires constitutional arrangements suited to an independent Federation."),
-                new ChoiceData("Write an entirely new constitution immediately without consultation or review.", "ALAN LENNOX-BOYD", "Constitutional change of this scale requires careful examination. Moving immediately without review would risk leaving major questions unresolved.")),
+                new ChoiceData("Establish an independent constitutional commission and consult the communities of Malaya.", "ALAN LENNOX-BOYD", "That provides a structured way forward. The Commission can examine the Federation's constitutional arrangements and make recommendations before independence.", 10, 10),
+                new ChoiceData("Keep the existing constitutional system permanently unchanged.", "ALAN LENNOX-BOYD", "Then full self-government would be difficult to achieve. Independence requires constitutional arrangements suited to an independent Federation.", 0, -10, -10),
+                new ChoiceData("Write an entirely new constitution immediately without consultation or review.", "ALAN LENNOX-BOYD", "Constitutional change of this scale requires careful examination. Moving immediately without review would risk leaving major questions unresolved.", -10, -5)),
             new StepData("ALAN LENNOX-BOYD", "The delegation has asked for a clear target. When should full self-government and independence be achieved?",
-                new ChoiceData("By August 1957, allowing time for constitutional preparation while setting a clear and near-term goal.", "ALAN LENNOX-BOYD", "It is an ambitious timetable, but a definite target provides direction. If the constitutional work proceeds successfully, every effort can be made to achieve independence by then."),
-                new ChoiceData("Leave the date completely undefined.", "ALAN LENNOX-BOYD", "Without a target, the delegation would return to Malaya unable to say when the transition is expected to occur."),
-                new ChoiceData("Declare independence immediately, before constitutional preparations are completed.", "ALAN LENNOX-BOYD", "The desire for independence is understood, but the constitutional and administrative arrangements cannot simply be ignored.")),
+                new ChoiceData("By August 1957, allowing time for constitutional preparation while setting a clear and near-term goal.", "ALAN LENNOX-BOYD", "It is an ambitious timetable, but a definite target provides direction. If the constitutional work proceeds successfully, every effort can be made to achieve independence by then.", 10, 0, 10),
+                new ChoiceData("Leave the date completely undefined.", "ALAN LENNOX-BOYD", "Without a target, the delegation would return to Malaya unable to say when the transition is expected to occur.", 0, 0, -15),
+                new ChoiceData("Declare independence immediately, before constitutional preparations are completed.", "ALAN LENNOX-BOYD", "The desire for independence is understood, but the constitutional and administrative arrangements cannot simply be ignored.", -15, -5)),
             new StepData(new[]
                 {
                     new LineData("TUNKU ABDUL RAHMAN", "We have secured a path toward full self-government, constitutional reform and a target for independence. It is not the end of the work, but it may be the beginning of an independent Malaya."),
                     new LineData("TUNKU ABDUL RAHMAN", "Shall we move forward with the agreement?")
                 },
-                new ChoiceData("Yes. This gives Malaya a clear path toward independence.", "TUNKU ABDUL RAHMAN", "Then we move forward together. There is still much work ahead, but Malaya now has a destination - and a date toward which we can work."),
-                new ChoiceData("We should abandon the conference and begin again.", "TUNKU ABDUL RAHMAN", "Then everything achieved during these negotiations is placed in doubt. Without accepting a path forward, there can be no agreement from this conference."))
+                new ChoiceData("Yes. This gives Malaya a clear path toward independence.", "TUNKU ABDUL RAHMAN", "Then we move forward together. There is still much work ahead, but Malaya now has a destination - and a date toward which we can work.", 0, 10),
+                new ChoiceData("We should abandon the conference and begin again.", "TUNKU ABDUL RAHMAN", "Then everything achieved during these negotiations is placed in doubt. Without accepting a path forward, there can be no agreement from this conference.", 0, -50))
         };
 
         private static void Validate(Scene scene, LevelTwoConversationTrigger[] triggers)
@@ -491,16 +675,41 @@ namespace DefenderOfIndependence.EditorTools
             LevelTwoConversationViewer viewer = FindUnique<LevelTwoConversationViewer>(scene);
             LevelTwoConfirmationPanel confirmation = FindUnique<LevelTwoConfirmationPanel>(scene);
             LevelTwoConversationCameraFocus focus = FindUnique<LevelTwoConversationCameraFocus>(scene);
+            LevelTwoNegotiationMeterController meters = FindUnique<LevelTwoNegotiationMeterController>(scene);
             LevelTwoDoorInteractor interactor = FindUnique<LevelTwoDoorInteractor>(scene);
+            LevelTwoDayController dayController = FindUnique<LevelTwoDayController>(scene);
             SerializedObject interactorData = new SerializedObject(interactor);
-            if (viewer == null || confirmation == null || focus == null || triggers.Length != 6 ||
+            SerializedObject dayData = new SerializedObject(dayController);
+            SerializedObject viewerData = new SerializedObject(viewer);
+            SerializedObject meterData = new SerializedObject(meters);
+            LevelTwoConversationTrigger finalTrigger = triggers.Single(item => item.ActiveDay == 6);
+            if (viewer == null || confirmation == null || focus == null || meters == null || triggers.Length != 6 ||
                 triggers.Any(item => item == null || item.InteractionCollider == null || item.StepCount == 0) ||
                 triggers.Count(item => item.CameraFocusTarget != null) != 5 ||
+                !finalTrigger.CalculatesFinalResult ||
+                viewerData.FindProperty("meterController").objectReferenceValue != meters ||
+                meterData.FindProperty("britishConfidenceSlider").objectReferenceValue == null ||
+                meterData.FindProperty("delegationUnitySlider").objectReferenceValue == null ||
+                meterData.FindProperty("publicSupportSlider").objectReferenceValue == null ||
+                meterData.FindProperty("finalOverlay").objectReferenceValue == null ||
+                meterData.FindProperty("finalDayEntryRequirement").intValue != 50 ||
+                dayData.FindProperty("negotiationMeters").objectReferenceValue != meters ||
+                dayData.FindProperty("transitionHiddenHud").arraySize != 2 ||
                 interactorData.FindProperty("conversations").arraySize != 6 ||
                 interactorData.FindProperty("confirmationPanel").objectReferenceValue == null)
                 throw new InvalidOperationException("Level 2 conversation wiring is incomplete.");
 
-            Debug.Log("LEVEL2_CONVERSATION_VALID dailyTriggers=6 fungus=line-by-line choices=horizontal cameraFocus=5 radioFocus=false confirmations=energy+clock");
+            Transform hud = FindUniqueTransform(scene, "Day HUD");
+            int meterIndex = hud.Find(MeterPanelName).GetSiblingIndex();
+            int energyIndex = hud.Find("Energy Display").GetSiblingIndex();
+            int dialogueIndex = hud.Find(PanelName).GetSiblingIndex();
+            int documentIndex = hud.Find("Level 2 Document Panel").GetSiblingIndex();
+            int dayCardIndex = hud.Find("Day Transition Card").GetSiblingIndex();
+            if (meterIndex >= dialogueIndex || meterIndex >= documentIndex || meterIndex >= dayCardIndex ||
+                energyIndex >= dayCardIndex)
+                throw new InvalidOperationException("Persistent Level 2 HUD elements are not behind modal/day panels.");
+
+            Debug.Log("LEVEL2_CONVERSATION_VALID dailyTriggers=6 meters=3 initial=30 day6Gate=>50 finalRequirement=>65 persistentHudBehindModals=true finalScene=Cutscene_Level3");
         }
 
         private static T FindUnique<T>(Scene scene) where T : Component
@@ -559,6 +768,12 @@ namespace DefenderOfIndependence.EditorTools
         {
             Transform child = parent.Find(name);
             if (child != null) UnityEngine.Object.DestroyImmediate(child.gameObject);
+        }
+
+        private static void MoveBefore(Transform item, Transform reference)
+        {
+            if (item == null || reference == null || item.parent != reference.parent) return;
+            item.SetSiblingIndex(reference.GetSiblingIndex());
         }
 
         private static void SetReference(UnityEngine.Object target, string field, UnityEngine.Object value)
