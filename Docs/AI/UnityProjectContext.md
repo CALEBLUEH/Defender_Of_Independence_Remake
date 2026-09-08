@@ -1,5 +1,22 @@
 # Unity Project Context
 
+## Level 2 documentation system
+
+- Level 2 has four aim-based document interactions on the user's existing colliders: Main Lobby, British Office, Planning Room, and Radio Station.
+- `LevelTwoDoorInteractor` is the single `C`-input owner for doors, the next-day clock, and documents.
+- The Main Lobby guide is free, reusable, and contains no conference-schedule page. The other three `LevelTwoDocumentLocation` components randomly serve three historical pages without replacement per playthrough.
+- `LevelTwoDocumentViewer` presents a left-aligned scrollable page, pauses first-person controls, releases the mouse pointer for the scrollbar/X button, and closes with X, `C`, or `Escape`.
+- `LevelTwoDayController` now owns 4 daily Energy, exposes `TrySpendEnergy`, updates the HUD, and restores Energy on a new day.
+- Documentation effects on negotiation meters are deferred; see `Docs/Level2DocumentationWorkflow.md`.
+
+## Level 2 dialogue and room access
+
+- Six day-specific `LevelTwoConversationTrigger` components cover Tunku (Days 1 and 5), Alan Lennox-Boyd (Days 2, 3, and 6), and the user's `RadioStationCollider` (Day 4).
+- `LevelTwoConversationViewer` releases the pointer for choices, presents the exact assignment dialogue, and supports the three-step Day 6 finale. Choice effects are deferred.
+- Each daily conversation costs 1 Energy and can start only once. Completed triggers retain an exhausted prompt for the remainder of their day.
+- Each door charges 1 Energy only on its first entry that day. Exits and later same-day re-entry are free.
+- Day 6 locks the Planning Room and Radio Station doors, leaving only the British Office/Alan Lennox-Boyd door available.
+
 Last analyzed: 2026-09-07  
 Analyzed commit: `ea60326be2f89db5d0e861d731aa285d8bda5e44`
 
@@ -42,6 +59,7 @@ Sources: `ProjectSettings/ProjectVersion.txt`, `ProjectSettings/GraphicsSettings
 - `Scene_Level1` opens on a paused, scrollable instruction panel. START MISSION enables player controls and begins the initial enemy wave.
 - `Cutscene_Level2` contains seven Fungus dialogue beats and loads `Scene_Level2` after its final Space prompt.
 - `Scene_Level2` contains the imported interior house at the origin under `Level 2 Environment`, the user's room decoration, and a model-less WASD/mouse first-person player under `Level 2 Gameplay`. Three C-interaction doors use paired Enter/Exit markers and a black fade transition. The player exposes `ReturnToInitialSpawn()` for the future day-skip flow.
+- Level 2 now owns a six-day progression under `Level 2 Gameplay/Level 2 Day System`. `NextDayClock` advances with C, shows a FNAF-inspired day card, returns the player to the lobby spawn, refreshes the appointment HUD, swaps scheduled character visibility, and stops at Day 6. Gameplay transitions keep the pointer captured; only future dialogue choices should release it.
 - The senior project's requested source scene was the misspelled `Assets/Scene/Meuseum.unity`; its working-tree version was the migration source.
 
 ## Architecture and conventions
@@ -67,6 +85,7 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - The Level 2 model pass inspected all FBX hierarchies before splitting, generated 40 furniture prefabs plus house/radio/clock prefabs, and validated every prefab has renderers and colliders. The house is 11.05 × 3.41 × 12.81 Unity units with four mesh colliders. All generated materials resolve to supported URP/Lit shaders and their intended base/normal/occlusion textures.
 - The Level 1 instruction controller now synchronizes its menu/gameplay cursor state with `StarterAssetsInputs`, preventing focus changes from locking the pointer before START MISSION.
 - The Level 2 gameplay authoring pass compiled under Unity 6000.5.0f1 and persisted a model-less CharacterController player, initial-spawn reference, three explicit door/spawn pairs, an Inspector-editable C prompt, and an unscaled-time black fade overlay without rebuilding the user's environment or furniture roots.
+- The Level 2 day-system Play Mode smoke test advanced from Day 1 through Day 6, returned the player to `PlayerInitialSpawnPoint` after every clock use, verified daily character visibility counts of 1/1/1/0/1/2, and confirmed the clock cannot advance past the final day. A separate persistence pass reloaded all clock, HUD, briefing, and marker references.
 
 ## Important constraints and risks
 

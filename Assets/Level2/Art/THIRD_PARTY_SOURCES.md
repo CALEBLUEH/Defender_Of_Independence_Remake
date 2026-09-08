@@ -10,6 +10,8 @@ Imported on 7 September 2026 from the user-provided `DefenderOfIndependenceModel
 | `Furniture/Set03` | Furniture Set, Matt LeMoine | https://sketchfab.com/3d-models/furniture-set-b9dc4c2e12a34a69948681bd9d74aa63 | CC Attribution-NonCommercial-ShareAlike 4.0 | “Furniture Set” by Matt LeMoine, licensed under CC BY-NC-SA 4.0; non-commercial and share-alike restrictions apply |
 | `Props/RadioStation` | Yaesu FT-897, DavidKlein | https://sketchfab.com/3d-models/yaesu-ft-897-6cfe2308acc04eb299db60a8b1af4f08 | CC Attribution 4.0 | “Yaesu FT-897” by DavidKlein, licensed under CC BY 4.0 |
 | `Props/Clock` | Grandfather Clock, Lyskilde (Sketchfab username: longtail) | https://sketchfab.com/3d-models/grandfather-clock-cef39f1bd3df43578236f273f273a873 | CC Attribution 4.0 | “Grandfather Clock” by Lyskilde, licensed under CC BY 4.0 |
+| `Characters/AlanLennoxBoyd` | Elegance in a Black Suit, restore50 | https://sketchfab.com/3d-models/elegance-in-a-black-suit-b3a53394a0f24a019b02098de570d16d | CC Attribution 4.0 | “Elegance in a Black Suit” by restore50, licensed under CC BY 4.0 |
+| `Characters/TunkuAbdulRahman` | Tunku Abdul Rahman Baju Muskat Berjalan, wanmohdafiq | https://sketchfab.com/3d-models/tunku-abdul-rahman-baju-muskat-berjalan-aa1ebc71e6b148c986e02c96bfce7d4f | CC Attribution 4.0 | “Tunku Abdul Rahman Baju Muskat Berjalan” by wanmohdafiq, licensed under CC BY 4.0 |
 
 Licence URLs:
 

@@ -22,8 +22,10 @@ namespace DefenderOfIndependence.Level2
         private float _verticalVelocity;
         private float _pitch;
         private bool _controlsEnabled = true;
+        private bool _uiCursorActive;
 
         public bool ControlsEnabled => _controlsEnabled;
+        public bool UiCursorActive => _uiCursorActive;
         public Transform InitialSpawnPoint => initialSpawnPoint;
 
         private void Awake()
@@ -67,6 +69,12 @@ namespace DefenderOfIndependence.Level2
             {
                 _verticalVelocity = 0f;
             }
+        }
+
+        public void SetUiCursorActive(bool active)
+        {
+            _uiCursorActive = active;
+            ApplyCursorState();
         }
 
         public void ReturnToInitialSpawn()
@@ -148,10 +156,10 @@ namespace DefenderOfIndependence.Level2
             cameraPivot.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
         }
 
-        private static void ApplyCursorState()
+        private void ApplyCursorState()
         {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            Cursor.lockState = _uiCursorActive ? CursorLockMode.None : CursorLockMode.Locked;
+            Cursor.visible = _uiCursorActive;
         }
     }
 }
