@@ -12,6 +12,16 @@ public static class LevelTwoDocumentationPlayModeSmoke
     private const string ActiveKey = "Defender.Level2.DocumentSmoke.Active";
     private const string ResultKey = "Defender.Level2.DocumentSmoke.Result";
     private static double _deadline;
+    private static LevelTwoDayController _day;
+    private static LevelTwoDocumentViewer _viewer;
+    private static LevelTwoFirstPersonController _player;
+    private static LevelTwoDocumentLocation _lobby;
+    private static LevelTwoDocumentLocation[] _paidLocations;
+    private static int _phase;
+    private static int _lobbyOpening;
+    private static int _paidLocationIndex;
+    private static int _paidPage;
+    private static int _expectedEnergy;
 
     static LevelTwoDocumentationPlayModeSmoke()
     {
@@ -65,79 +75,111 @@ public static class LevelTwoDocumentationPlayModeSmoke
             return;
         }
 
-        LevelTwoDayController day = UnityEngine.Object.FindAnyObjectByType<LevelTwoDayController>();
-        if (day == null || day.IsTransitioning) return;
+        _day = UnityEngine.Object.FindAnyObjectByType<LevelTwoDayController>();
+        if (_day == null || _day.IsTransitioning) return;
 
-        LevelTwoDocumentViewer viewer = UnityEngine.Object.FindAnyObjectByType<LevelTwoDocumentViewer>();
-        LevelTwoFirstPersonController player = UnityEngine.Object.FindAnyObjectByType<LevelTwoFirstPersonController>();
+        _viewer = UnityEngine.Object.FindAnyObjectByType<LevelTwoDocumentViewer>();
+        _player = UnityEngine.Object.FindAnyObjectByType<LevelTwoFirstPersonController>();
         LevelTwoDocumentLocation[] locations = UnityEngine.Object.FindObjectsByType<LevelTwoDocumentLocation>(FindObjectsInactive.Include);
-        if (viewer == null || player == null || locations.Length != 4)
+        if (_viewer == null || _player == null || locations.Length != 4)
         {
             Fail("The scene did not load one viewer, one player, and four document locations.");
             return;
         }
 
-        LevelTwoDocumentLocation lobby = locations.Single(item => item.IsReusable);
-        day.ResetToStartingDay();
-        int lobbyEnergy = day.CurrentEnergy;
-        for (int opening = 0; opening < 3; opening++)
+        if (_lobby == null)
         {
-            if (!lobby.TryExamine(viewer, day) || day.CurrentEnergy != lobbyEnergy || lobby.IsExhausted ||
-                !viewer.IsOpen || !player.UiCursorActive)
+            _lobby = locations.Single(item => item.IsReusable);
+            _paidLocations = locations.Where(item => !item.IsReusable).OrderBy(item => item.name).ToArray();
+            _day.ResetToStartingDay();
+            _phase = 0;
+        }
+
+        if (_phase == 0)
+        {
+            int lobbyEnergy = _day.CurrentEnergy;
+            if (!_lobby.TryExamine(_viewer, _day) || _day.CurrentEnergy != lobbyEnergy || _lobby.IsExhausted ||
+                !_viewer.IsOpen || !_player.UiCursorActive || _player.ControlsEnabled)
             {
                 Fail("The Main Lobby guide was not reusable, free, or pointer-enabled.");
                 return;
             }
-            viewer.Close();
-        }
-
-        LevelTwoDocumentLocation paidLocation = locations.First(item => !item.IsReusable);
-        for (int i = 0; i < 4; i++)
-        {
-            if (!day.TrySpendEnergy(1)) { Fail("Energy could not be spent four times."); return; }
-        }
-        if (day.CurrentEnergy != 0 || !paidLocation.GetPrompt(day).StartsWith("NO ENERGY"))
-        {
-            Fail("The zero-energy state or prompt is incorrect.");
+            _viewer.Close();
+            _phase = 1;
             return;
         }
 
-        foreach (LevelTwoDocumentLocation location in locations.Where(item => !item.IsReusable).OrderBy(item => item.name))
+        if (_phase == 1)
         {
-            day.ResetToStartingDay();
-            for (int page = 0; page < 3; page++)
+            if (_viewer.IsOpen) return;
+            if (!_player.ControlsEnabled || _player.UiCursorActive)
             {
-                int energyBefore = day.CurrentEnergy;
-                if (!location.TryExamine(viewer, day) || !viewer.IsOpen || player.ControlsEnabled ||
-                    location.RemainingCount != 2 - page || day.CurrentEnergy != energyBefore - 1)
-                {
-                    Fail($"{location.name} failed while opening document {page + 1}.");
-                    return;
-                }
-
-                viewer.Close();
-                if (viewer.IsOpen || !player.ControlsEnabled || player.UiCursorActive)
-                {
-                    Fail($"{location.name} did not restore gameplay after closing.");
-                    return;
-                }
-            }
-
-            int exhaustedEnergy = day.CurrentEnergy;
-            if (!location.IsExhausted || location.TryExamine(viewer, day) || day.CurrentEnergy != exhaustedEnergy ||
-                location.GetPrompt(day) != "NO DOCUMENTS REMAIN HERE")
-            {
-                Fail($"{location.name} did not stay exhausted after all three pages.");
+                Fail("The document slide-down did not restore gameplay and cursor locking.");
                 return;
             }
+
+            _lobbyOpening++;
+            if (_lobbyOpening < 3) { _phase = 0; return; }
+            for (int i = 0; i < 4; i++)
+            {
+                if (!_day.TrySpendEnergy(1)) { Fail("Energy could not be spent four times."); return; }
+            }
+            if (_day.CurrentEnergy != 0 || !_paidLocations[0].GetPrompt(_day).StartsWith("NO ENERGY"))
+            {
+                Fail("The zero-energy state or prompt is incorrect.");
+                return;
+            }
+            _paidLocationIndex = 0;
+            _paidPage = 0;
+            _phase = 2;
+            return;
         }
 
-        Pass();
+        if (_phase == 2)
+        {
+            if (_paidLocationIndex >= _paidLocations.Length) { Pass(); return; }
+            if (_paidPage == 0) _day.ResetToStartingDay();
+            LevelTwoDocumentLocation location = _paidLocations[_paidLocationIndex];
+            _expectedEnergy = _day.CurrentEnergy - 1;
+            if (!location.TryExamine(_viewer, _day) || !_viewer.IsOpen || _player.ControlsEnabled ||
+                location.RemainingCount != 2 - _paidPage || _day.CurrentEnergy != _expectedEnergy)
+            {
+                Fail($"{location.name} failed while opening document {_paidPage + 1}.");
+                return;
+            }
+            _viewer.Close();
+            _phase = 3;
+            return;
+        }
+
+        if (_phase == 3)
+        {
+            if (_viewer.IsOpen) return;
+            if (!_player.ControlsEnabled || _player.UiCursorActive)
+            {
+                Fail($"{_paidLocations[_paidLocationIndex].name} did not restore gameplay after its slide-down.");
+                return;
+            }
+
+            _paidPage++;
+            if (_paidPage < 3) { _phase = 2; return; }
+            LevelTwoDocumentLocation completed = _paidLocations[_paidLocationIndex];
+            int exhaustedEnergy = _day.CurrentEnergy;
+            if (!completed.IsExhausted || completed.TryExamine(_viewer, _day) || _day.CurrentEnergy != exhaustedEnergy ||
+                completed.GetPrompt(_day) != "NO DOCUMENTS REMAIN HERE")
+            {
+                Fail($"{completed.name} did not stay exhausted after all three pages.");
+                return;
+            }
+            _paidLocationIndex++;
+            _paidPage = 0;
+            _phase = 2;
+        }
     }
 
     private static void Pass()
     {
-        Debug.Log("LEVEL_TWO_DOCUMENTATION_PLAYMODE_OK: free reusable lobby guide, nine one-time historical pages, pointer/scroll UI, energy reset, exhausted prompts.");
+        Debug.Log("LEVEL_TWO_DOCUMENTATION_PLAYMODE_OK: free reusable lobby guide, nine one-time historical pages, pointer/scroll UI, rise-up/slide-down lifecycle, energy reset, exhausted prompts.");
         Complete("PASS");
     }
 
@@ -169,6 +211,11 @@ public static class LevelTwoDocumentationPlayModeSmoke
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         SessionState.EraseBool(ActiveKey);
         SessionState.EraseString(ResultKey);
+        _day = null;
+        _viewer = null;
+        _player = null;
+        _lobby = null;
+        _paidLocations = null;
         if (Application.isBatchMode) EditorApplication.Exit(passed ? 0 : 1);
     }
 }

@@ -43,6 +43,13 @@ namespace DefenderOfIndependence.Level2
         public bool IsExhausted => !reusable && RemainingCount == 0;
         public bool IsReusable => reusable;
         public int EnergyCost => energyCost;
+        public bool RequiresConfirmation => !reusable && energyCost > 0;
+
+        public bool CanExamine(LevelTwoDayController dayController)
+        {
+            return dayController != null && (reusable || !IsExhausted) &&
+                   (energyCost <= 0 || dayController.CurrentEnergy >= energyCost);
+        }
 
         private void Awake()
         {
@@ -68,7 +75,7 @@ namespace DefenderOfIndependence.Level2
 
         public bool TryExamine(LevelTwoDocumentViewer viewer, LevelTwoDayController dayController)
         {
-            if (viewer == null || dayController == null || (!reusable && IsExhausted))
+            if (viewer == null || !CanExamine(dayController))
             {
                 return false;
             }

@@ -14,8 +14,17 @@ namespace DefenderOfIndependence.Level2
         }
 
         [Serializable]
+        public struct ConversationLine
+        {
+            public string speaker;
+            [TextArea(3, 8)] public string text;
+        }
+
+        [Serializable]
         public struct ConversationStep
         {
+            [Tooltip("One Fungus Say line per entry. Legacy speaker/prompt values remain as a safe fallback.")]
+            public ConversationLine[] lines;
             public string speaker;
             [TextArea(3, 10)] public string prompt;
             public ConversationChoice[] choices;
@@ -25,6 +34,7 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private string conversationDisplayName = "CONVERSATION";
         [SerializeField] private Collider interactionCollider;
         [SerializeField, Min(0)] private int energyCost = 1;
+        [SerializeField] private Transform cameraFocusTarget;
         [SerializeField] private ConversationStep[] steps;
 
         private bool _consumed;
@@ -33,6 +43,16 @@ namespace DefenderOfIndependence.Level2
         public bool WasConsumed => _consumed;
         public Collider InteractionCollider => interactionCollider;
         public int StepCount => steps?.Length ?? 0;
+        public int EnergyCost => energyCost;
+        public string ConversationDisplayName => conversationDisplayName;
+        public Transform CameraFocusTarget => cameraFocusTarget;
+        public bool RequiresConfirmation => energyCost > 0;
+
+        public bool CanBegin(LevelTwoDayController dayController)
+        {
+            return !_consumed && dayController != null && dayController.CurrentDay == activeDay &&
+                   steps != null && steps.Length > 0 && dayController.CurrentEnergy >= energyCost;
+        }
 
         public void ApplyDay(int day)
         {
@@ -69,8 +89,7 @@ namespace DefenderOfIndependence.Level2
 
         public bool TryBegin(LevelTwoConversationViewer viewer, LevelTwoDayController dayController)
         {
-            if (_consumed || viewer == null || !viewer.CanBegin || dayController == null || dayController.CurrentDay != activeDay ||
-                steps == null || steps.Length == 0 || dayController.CurrentEnergy < energyCost)
+            if (viewer == null || !viewer.CanBegin || !CanBegin(dayController))
             {
                 return false;
             }
@@ -80,7 +99,7 @@ namespace DefenderOfIndependence.Level2
                 return false;
             }
 
-            if (!viewer.Begin(steps))
+            if (!viewer.Begin(steps, cameraFocusTarget))
             {
                 return false;
             }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DefenderOfIndependence.Cutscenes;
 using DefenderOfIndependence.Level2;
+using Fungus;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -15,6 +17,7 @@ namespace DefenderOfIndependence.EditorTools
     {
         private const string ScenePath = "Assets/Scene/Scene_Level2.unity";
         private const string PanelName = "Level 2 Conversation Panel";
+        private const string ConfirmationPanelName = "Level 2 Confirmation Panel";
         private const string TitleFontPath = "Assets/Font/AudioWide/Audiowide-Regular SDF.asset";
         private const string BodyFontPath = "Assets/Plugins/Fungus/Thirdparty/TextMeshPro/Resources/Fonts & Materials/LiberationSans SDF.asset";
         private const string PanelAsset = "Assets/ThirdParty/Kenney/UI Pack RPG Expansion/panel_beige.png";
@@ -31,14 +34,24 @@ namespace DefenderOfIndependence.EditorTools
             }
         }
 
-        private readonly struct StepData
+        private readonly struct LineData
         {
             public readonly string Speaker;
-            public readonly string Prompt;
+            public readonly string Text;
+            public LineData(string speaker, string text) { Speaker = speaker; Text = text; }
+        }
+
+        private readonly struct StepData
+        {
+            public readonly LineData[] Lines;
             public readonly ChoiceData[] Choices;
             public StepData(string speaker, string prompt, params ChoiceData[] choices)
             {
-                Speaker = speaker; Prompt = prompt; Choices = choices;
+                Lines = new[] { new LineData(speaker, prompt) }; Choices = choices;
+            }
+            public StepData(LineData[] lines, params ChoiceData[] choices)
+            {
+                Lines = lines; Choices = choices;
             }
         }
 
@@ -69,21 +82,46 @@ namespace DefenderOfIndependence.EditorTools
             LevelTwoDoorInteractor interactor = FindUnique<LevelTwoDoorInteractor>(scene);
             LevelTwoFirstPersonController player = FindUnique<LevelTwoFirstPersonController>(scene);
             Transform dayHud = FindUniqueTransform(scene, "Day HUD");
+            Camera playerCamera = player.GetComponentInChildren<Camera>(true) ??
+                                  throw new InvalidOperationException("The Level 2 player camera is missing.");
 
             DestroyChild(dayHud, PanelName);
-            CreateConversationPanel(dayHud, out GameObject panel, out TMP_Text speakerText, out TMP_Text dialogueText,
-                out Button[] choiceButtons, out TMP_Text[] choiceLabels, out Button continueButton, out TMP_Text continueLabel);
+            DestroyChild(dayHud, ConfirmationPanelName);
+            CreateConversationPanel(dayHud, out GameObject panel, out SayDialog sayDialog, out Writer writer,
+                out DialogInput dialogInput, out GameObject choiceRoot, out Button[] choiceButtons,
+                out TMP_Text[] choiceLabels);
+            CreateConfirmationPanel(dayHud, out GameObject confirmationPanelObject, out RectTransform confirmationWindow,
+                out CanvasGroup confirmationWindowGroup, out TMP_Text confirmationTitle, out TMP_Text confirmationMessage,
+                out GameObject warningRoot, out TMP_Text warningText, out Button confirmButton, out Button cancelButton);
+
+            LevelTwoConversationCameraFocus cameraFocus = dayController.GetComponent<LevelTwoConversationCameraFocus>() ??
+                                                          dayController.gameObject.AddComponent<LevelTwoConversationCameraFocus>();
+            SetReference(cameraFocus, "playerCamera", playerCamera);
 
             LevelTwoConversationViewer viewer = dayController.GetComponent<LevelTwoConversationViewer>() ??
                                                 dayController.gameObject.AddComponent<LevelTwoConversationViewer>();
             SetReference(viewer, "panel", panel);
-            SetReference(viewer, "speakerText", speakerText);
-            SetReference(viewer, "dialogueText", dialogueText);
+            SetReference(viewer, "sayDialog", sayDialog);
+            SetReference(viewer, "writer", writer);
+            SetReference(viewer, "dialogInput", dialogInput);
+            SetReference(viewer, "choiceRoot", choiceRoot);
             SetReferenceArray(viewer, "choiceButtons", choiceButtons);
             SetReferenceArray(viewer, "choiceLabels", choiceLabels);
-            SetReference(viewer, "continueButton", continueButton);
-            SetReference(viewer, "continueLabel", continueLabel);
             SetReference(viewer, "playerController", player);
+            SetReference(viewer, "cameraFocus", cameraFocus);
+
+            LevelTwoConfirmationPanel confirmationPanel = dayController.GetComponent<LevelTwoConfirmationPanel>() ??
+                                                          dayController.gameObject.AddComponent<LevelTwoConfirmationPanel>();
+            SetReference(confirmationPanel, "panel", confirmationPanelObject);
+            SetReference(confirmationPanel, "window", confirmationWindow);
+            SetReference(confirmationPanel, "windowCanvasGroup", confirmationWindowGroup);
+            SetReference(confirmationPanel, "titleText", confirmationTitle);
+            SetReference(confirmationPanel, "messageText", confirmationMessage);
+            SetReference(confirmationPanel, "warningRoot", warningRoot);
+            SetReference(confirmationPanel, "warningText", warningText);
+            SetReference(confirmationPanel, "confirmButton", confirmButton);
+            SetReference(confirmationPanel, "cancelButton", cancelButton);
+            SetReference(confirmationPanel, "playerController", player);
 
             LevelTwoConversationTrigger[] triggers =
             {
@@ -98,12 +136,14 @@ namespace DefenderOfIndependence.EditorTools
             SetReferenceArray(dayController, "conversationTriggers", triggers);
             SetReference(interactor, "conversationViewer", viewer);
             SetReferenceArray(interactor, "conversations", triggers);
+            SetReference(interactor, "confirmationPanel", confirmationPanel);
 
             ConfigureFinalDayDoor(scene, "TunkuAbdulRahmanDoor", false);
             ConfigureFinalDayDoor(scene, "RadioStationDoor", false);
             ConfigureFinalDayDoor(scene, "AlanLennox-BoydDoor", true);
 
             panel.SetActive(false);
+            confirmationPanelObject.SetActive(false);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
@@ -123,7 +163,8 @@ namespace DefenderOfIndependence.EditorTools
             BoxCollider collider = colliderTransform.GetComponent<BoxCollider>();
             if (collider == null) collider = colliderTransform.gameObject.AddComponent<BoxCollider>();
             FitColliderToRenderers(target, collider);
-            return ConfigureTrigger(target, collider, day, displayName, steps);
+            Transform focusTarget = CreateOrKeepCameraFocusTarget(target);
+            return ConfigureTrigger(target, collider, day, displayName, steps, focusTarget);
         }
 
         private static LevelTwoConversationTrigger ConfigureExistingCollider(Scene scene, string objectName, int day,
@@ -132,11 +173,11 @@ namespace DefenderOfIndependence.EditorTools
             Transform target = FindUniqueTransform(scene, objectName);
             Collider collider = target.GetComponent<Collider>() ??
                                 throw new InvalidOperationException(objectName + " needs its authored Collider.");
-            return ConfigureTrigger(target, collider, day, displayName, steps);
+            return ConfigureTrigger(target, collider, day, displayName, steps, null);
         }
 
         private static LevelTwoConversationTrigger ConfigureTrigger(Transform target, Collider collider, int day,
-            string displayName, StepData[] steps)
+            string displayName, StepData[] steps, Transform focusTarget)
         {
             LevelTwoConversationTrigger trigger = target.GetComponent<LevelTwoConversationTrigger>() ??
                                                   target.gameObject.AddComponent<LevelTwoConversationTrigger>();
@@ -145,14 +186,24 @@ namespace DefenderOfIndependence.EditorTools
             data.FindProperty("conversationDisplayName").stringValue = displayName;
             data.FindProperty("interactionCollider").objectReferenceValue = collider;
             data.FindProperty("energyCost").intValue = 1;
+            data.FindProperty("cameraFocusTarget").objectReferenceValue = focusTarget;
             SerializedProperty stepArray = data.FindProperty("steps");
             stepArray.arraySize = steps.Length;
             for (int stepIndex = 0; stepIndex < steps.Length; stepIndex++)
             {
                 StepData sourceStep = steps[stepIndex];
                 SerializedProperty step = stepArray.GetArrayElementAtIndex(stepIndex);
-                step.FindPropertyRelative("speaker").stringValue = sourceStep.Speaker;
-                step.FindPropertyRelative("prompt").stringValue = sourceStep.Prompt;
+                LineData fallback = sourceStep.Lines[0];
+                step.FindPropertyRelative("speaker").stringValue = fallback.Speaker;
+                step.FindPropertyRelative("prompt").stringValue = fallback.Text;
+                SerializedProperty lines = step.FindPropertyRelative("lines");
+                lines.arraySize = sourceStep.Lines.Length;
+                for (int lineIndex = 0; lineIndex < sourceStep.Lines.Length; lineIndex++)
+                {
+                    SerializedProperty line = lines.GetArrayElementAtIndex(lineIndex);
+                    line.FindPropertyRelative("speaker").stringValue = sourceStep.Lines[lineIndex].Speaker;
+                    line.FindPropertyRelative("text").stringValue = sourceStep.Lines[lineIndex].Text;
+                }
                 SerializedProperty choices = step.FindPropertyRelative("choices");
                 choices.arraySize = sourceStep.Choices.Length;
                 for (int choiceIndex = 0; choiceIndex < sourceStep.Choices.Length; choiceIndex++)
@@ -166,6 +217,26 @@ namespace DefenderOfIndependence.EditorTools
             }
             data.ApplyModifiedPropertiesWithoutUndo();
             return trigger;
+        }
+
+        private static Transform CreateOrKeepCameraFocusTarget(Transform character)
+        {
+            Transform existing = character.Find("Conversation Camera Focus");
+            if (existing != null) return existing;
+
+            Renderer[] renderers = character.GetComponentsInChildren<Renderer>(true);
+            if (renderers.Length == 0) throw new InvalidOperationException(character.name + " has no renderer for camera focus.");
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+
+            Transform focus = new GameObject("Conversation Camera Focus").transform;
+            focus.SetParent(character, true);
+            Vector3 lookPoint = bounds.center + Vector3.up * bounds.extents.y * 0.12f;
+            Vector3 front = character.forward;
+            float distance = Mathf.Max(1.5f, bounds.extents.z + 1.15f);
+            focus.position = lookPoint + front * distance;
+            focus.rotation = Quaternion.LookRotation(lookPoint - focus.position, Vector3.up);
+            return focus;
         }
 
         private static void FitColliderToRenderers(Transform root, BoxCollider collider)
@@ -202,60 +273,148 @@ namespace DefenderOfIndependence.EditorTools
             data.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void CreateConversationPanel(Transform parent, out GameObject panel, out TMP_Text speaker,
-            out TMP_Text dialogue, out Button[] choiceButtons, out TMP_Text[] choiceLabels,
-            out Button continueButton, out TMP_Text continueLabel)
+        private static void CreateConversationPanel(Transform parent, out GameObject panel, out SayDialog sayDialog,
+            out Writer writer, out DialogInput dialogInput, out GameObject choiceRoot,
+            out Button[] choiceButtons, out TMP_Text[] choiceLabels)
         {
             TMP_FontAsset titleFont = Load<TMP_FontAsset>(TitleFontPath);
             TMP_FontAsset bodyFont = Load<TMP_FontAsset>(BodyFontPath);
             Sprite panelSprite = Load<Sprite>(PanelAsset);
             Sprite buttonSprite = Load<Sprite>(ButtonAsset);
 
-            Image overlay = CreateImage(parent, PanelName, null, new Color(0.006f, 0.01f, 0.018f, 0.74f));
-            Stretch(overlay.rectTransform, Vector2.zero, Vector2.zero);
-            overlay.raycastTarget = true;
-            panel = overlay.gameObject;
+            panel = CreateUiObject(PanelName, parent);
+            Stretch(panel.GetComponent<RectTransform>(), Vector2.zero, Vector2.zero);
+            CanvasGroup dialogGroup = panel.AddComponent<CanvasGroup>();
 
-            Image window = CreateImage(overlay.transform, "Conversation Window", panelSprite, new Color(0.86f, 0.79f, 0.63f, 1f));
+            Image window = CreateImage(panel.transform, "Fungus Dialogue Window", panelSprite, new Color(0.86f, 0.79f, 0.63f, 1f));
             window.type = Image.Type.Sliced;
-            SetRect(window.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 410f), new Vector2(1360f, 760f));
+            SetRect(window.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 250f), new Vector2(1450f, 470f));
 
-            speaker = CreateText(window.transform, "Speaker", titleFont, "SPEAKER", 31f,
+            TMP_Text speaker = CreateText(window.transform, "Speaker", titleFont, "SPEAKER", 31f,
                 new Color(0.19f, 0.105f, 0.045f), TextAlignmentOptions.Center);
-            SetRect(speaker.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -50f), new Vector2(1160f, 58f));
+            SetRect(speaker.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -48f), new Vector2(1280f, 58f));
 
             Image dialogueBackground = CreateImage(window.transform, "Dialogue Background", null, new Color(0.25f, 0.14f, 0.06f, 0.12f));
-            SetRect(dialogueBackground.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -195f), new Vector2(1180f, 210f));
-            dialogue = CreateText(dialogueBackground.transform, "Dialogue", bodyFont, "Dialogue text", 25f,
-                new Color(0.14f, 0.075f, 0.03f), TextAlignmentOptions.MidlineLeft);
+            SetRect(dialogueBackground.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(1280f, 180f));
+            TMP_Text dialogue = CreateText(dialogueBackground.transform, "Dialogue", bodyFont, "Dialogue text", 25f,
+                new Color(0.14f, 0.075f, 0.03f), TextAlignmentOptions.Center);
             Stretch(dialogue.rectTransform, new Vector2(28f, 18f), new Vector2(-28f, -18f));
             dialogue.textWrappingMode = TextWrappingModes.Normal;
 
+            GameObject promptObject = CreateUiObject("Next Prompt", window.transform);
+            SetRect(promptObject.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f), new Vector2(520f, 52f));
+            CanvasGroup promptGroup = promptObject.AddComponent<CanvasGroup>();
+            TMP_Text promptLabel = CreateText(promptObject.transform, "Prompt Text", titleFont, "PRESS SPACE TO CONTINUE", 19f,
+                new Color(0.31f, 0.18f, 0.08f), TextAlignmentOptions.Center);
+            Stretch(promptLabel.rectTransform, Vector2.zero, Vector2.zero);
+
+            choiceRoot = CreateUiObject("Horizontal Choices", window.transform);
+            SetRect(choiceRoot.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 78f), new Vector2(1330f, 142f));
             choiceButtons = new Button[3];
             choiceLabels = new TMP_Text[3];
-            float[] choiceY = { 335f, 225f, 115f };
             for (int index = 0; index < choiceButtons.Length; index++)
             {
-                Image choiceImage = CreateImage(window.transform, $"Choice {index + 1}", buttonSprite, new Color(0.33f, 0.18f, 0.075f, 1f));
+                Image choiceImage = CreateImage(choiceRoot.transform, $"Choice {index + 1}", buttonSprite, new Color(0.33f, 0.18f, 0.075f, 1f));
                 choiceImage.type = Image.Type.Sliced;
-                SetRect(choiceImage.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, choiceY[index]), new Vector2(1160f, 94f));
+                SetRect(choiceImage.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2((index - 1) * 440f, 0f), new Vector2(410f, 128f));
                 choiceButtons[index] = choiceImage.gameObject.AddComponent<Button>();
-                choiceLabels[index] = CreateText(choiceImage.transform, "Label", bodyFont, "Choice", 21f,
+                choiceLabels[index] = CreateText(choiceImage.transform, "Label", bodyFont, "Choice", 17f,
                     new Color(0.98f, 0.94f, 0.84f), TextAlignmentOptions.Center);
-                Stretch(choiceLabels[index].rectTransform, new Vector2(24f, 10f), new Vector2(-24f, -10f));
+                Stretch(choiceLabels[index].rectTransform, new Vector2(18f, 8f), new Vector2(-18f, -8f));
                 choiceLabels[index].textWrappingMode = TextWrappingModes.Normal;
             }
 
-            Image continueImage = CreateImage(window.transform, "Continue Button", buttonSprite, new Color(0.33f, 0.18f, 0.075f, 1f));
-            continueImage.type = Image.Type.Sliced;
-            SetRect(continueImage.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 205f), new Vector2(430f, 78f));
-            continueButton = continueImage.gameObject.AddComponent<Button>();
-            continueLabel = CreateText(continueImage.transform, "Label", titleFont, "CONTINUE", 21f, Color.white, TextAlignmentOptions.Center);
-            Stretch(continueLabel.rectTransform, new Vector2(16f, 8f), new Vector2(-16f, -8f));
+            writer = panel.AddComponent<Writer>();
+            dialogInput = panel.AddComponent<DialogInput>();
+            sayDialog = panel.AddComponent<SayDialog>();
+            CutscenePromptController promptController = panel.AddComponent<CutscenePromptController>();
 
-            TMP_Text hint = CreateText(window.transform, "Choice Hint", bodyFont, "CHOOSE A RESPONSE WITH THE MOUSE", 18f,
-                new Color(0.31f, 0.18f, 0.08f), TextAlignmentOptions.Center);
-            SetRect(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 42f), new Vector2(700f, 32f));
+            SerializedObject writerData = new SerializedObject(writer);
+            writerData.FindProperty("targetTextObject").objectReferenceValue = dialogue.gameObject;
+            writerData.FindProperty("writingSpeed").floatValue = 42f;
+            writerData.FindProperty("punctuationPause").floatValue = 0.18f;
+            writerData.FindProperty("instantComplete").boolValue = true;
+            writerData.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject inputData = new SerializedObject(dialogInput);
+            inputData.FindProperty("clickMode").enumValueIndex = (int)ClickMode.Disabled;
+            inputData.FindProperty("nextClickDelay").floatValue = 0.12f;
+            inputData.FindProperty("cancelEnabled").boolValue = false;
+            inputData.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject sayData = new SerializedObject(sayDialog);
+            sayData.FindProperty("fadeDuration").floatValue = 0f;
+            sayData.FindProperty("continueButton").objectReferenceValue = null;
+            sayData.FindProperty("dialogCanvas").objectReferenceValue = parent.GetComponentInParent<Canvas>();
+            sayData.FindProperty("nameText").objectReferenceValue = null;
+            sayData.FindProperty("nameTextGO").objectReferenceValue = speaker.gameObject;
+            sayData.FindProperty("storyText").objectReferenceValue = null;
+            sayData.FindProperty("storyTextGO").objectReferenceValue = dialogue.gameObject;
+            sayData.FindProperty("characterImage").objectReferenceValue = null;
+            sayData.FindProperty("fitTextWithImage").boolValue = false;
+            sayData.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject promptData = new SerializedObject(promptController);
+            promptData.FindProperty("writer").objectReferenceValue = writer;
+            promptData.FindProperty("dialogInput").objectReferenceValue = dialogInput;
+            promptData.FindProperty("promptLabel").objectReferenceValue = promptLabel;
+            promptData.FindProperty("promptGroup").objectReferenceValue = promptGroup;
+            promptData.FindProperty("continuePrompt").stringValue = "PRESS SPACE TO CONTINUE";
+            promptData.FindProperty("finalPrompt").stringValue = "PRESS SPACE TO CONTINUE";
+            promptData.FindProperty("pulseSpeed").floatValue = 1.5f;
+            promptData.FindProperty("minimumAlpha").floatValue = 0.35f;
+            promptData.ApplyModifiedPropertiesWithoutUndo();
+
+            dialogGroup.alpha = 1f;
+            choiceRoot.SetActive(false);
+        }
+
+        private static void CreateConfirmationPanel(Transform parent, out GameObject panel, out RectTransform window,
+            out CanvasGroup windowGroup, out TMP_Text title, out TMP_Text message, out GameObject warningRoot,
+            out TMP_Text warning, out Button confirm, out Button cancel)
+        {
+            TMP_FontAsset titleFont = Load<TMP_FontAsset>(TitleFontPath);
+            TMP_FontAsset bodyFont = Load<TMP_FontAsset>(BodyFontPath);
+            Sprite panelSprite = Load<Sprite>(PanelAsset);
+            Sprite buttonSprite = Load<Sprite>(ButtonAsset);
+
+            Image blocker = CreateImage(parent, ConfirmationPanelName, null, new Color(0f, 0f, 0f, 0.18f));
+            Stretch(blocker.rectTransform, Vector2.zero, Vector2.zero);
+            blocker.raycastTarget = true;
+            panel = blocker.gameObject;
+
+            Image windowImage = CreateImage(blocker.transform, "Confirmation Window", panelSprite, new Color(0.86f, 0.79f, 0.63f, 1f));
+            windowImage.type = Image.Type.Sliced;
+            window = windowImage.rectTransform;
+            SetRect(window, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 245f), new Vector2(920f, 410f));
+            windowGroup = windowImage.gameObject.AddComponent<CanvasGroup>();
+
+            title = CreateText(window, "Title", titleFont, "CONFIRM", 32f, new Color(0.19f, 0.105f, 0.045f), TextAlignmentOptions.Center);
+            SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(760f, 58f));
+            message = CreateText(window, "Message", bodyFont, "Confirmation message", 24f, new Color(0.14f, 0.075f, 0.03f), TextAlignmentOptions.Center);
+            SetRect(message.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(760f, 112f));
+            message.textWrappingMode = TextWrappingModes.Normal;
+
+            warningRoot = CreateUiObject("Warning", window);
+            SetRect(warningRoot.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -238f), new Vector2(760f, 70f));
+            warning = CreateText(warningRoot.transform, "Warning Text", bodyFont, string.Empty, 20f, new Color(0.62f, 0.12f, 0.08f), TextAlignmentOptions.Center);
+            Stretch(warning.rectTransform, Vector2.zero, Vector2.zero);
+            warning.textWrappingMode = TextWrappingModes.Normal;
+
+            confirm = CreateConfirmationButton(window, "Confirm", "CONFIRM", buttonSprite, titleFont, new Vector2(-220f, 62f));
+            cancel = CreateConfirmationButton(window, "Cancel", "CANCEL", buttonSprite, titleFont, new Vector2(220f, 62f));
+        }
+
+        private static Button CreateConfirmationButton(Transform parent, string name, string label, Sprite sprite,
+            TMP_FontAsset font, Vector2 position)
+        {
+            Image image = CreateImage(parent, name, sprite, new Color(0.33f, 0.18f, 0.075f, 1f));
+            image.type = Image.Type.Sliced;
+            SetRect(image.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), position, new Vector2(330f, 78f));
+            Button button = image.gameObject.AddComponent<Button>();
+            TMP_Text text = CreateText(image.transform, "Label", font, label, 21f, Color.white, TextAlignmentOptions.Center);
+            Stretch(text.rectTransform, new Vector2(12f, 6f), new Vector2(-12f, -6f));
+            return button;
         }
 
         private static StepData[] DayOne() => new[]
@@ -285,7 +444,11 @@ namespace DefenderOfIndependence.EditorTools
 
         private static StepData[] DayFour() => new[]
         {
-            new StepData("LIVE RADIO BROADCAST", "Radio Host: We are live. Citizens across Malaya want to know what the delegation's negotiations mean for them.\n\nCitizen: Why should the people trust negotiation rather than confrontation?",
+            new StepData(new[]
+                {
+                    new LineData("RADIO HOST", "We are live. Citizens across Malaya want to know what the delegation's negotiations mean for them."),
+                    new LineData("CITIZEN", "Why should the people trust negotiation rather than confrontation?")
+                },
                 new ChoiceData("Independence must be pursued through unity, negotiation and peaceful political action.", "CITIZEN", "Then the people must remain part of that effort. If negotiation is to represent Malaya, the public must understand what is being negotiated and why unity matters."),
                 new ChoiceData("There is no need for public participation; leave everything to the politicians.", "CITIZEN", "But independence concerns the future of everyone who lives here. If citizens are told their support does not matter, why should they feel represented by the negotiations?"),
                 new ChoiceData("Only confrontation can achieve independence.", "CITIZEN", "Some listeners may find that message forceful, but others fear what confrontation could mean for Malaya's stability and unity."))
@@ -301,7 +464,12 @@ namespace DefenderOfIndependence.EditorTools
 
         private static StepData[] DaySix() => new[]
         {
-            new StepData("FINAL CONSTITUTIONAL CONFERENCE", "Alan Lennox-Boyd: Over the past weeks, we have discussed security, finance, defense and the future form of government. We must now decide whether there is a workable path toward full self-government and independence.\n\nTunku: The Federation delegation is ready.\n\nAlan Lennox-Boyd: Independence requires a constitution accepted by Malaya's institutions. How should that be prepared?",
+            new StepData(new[]
+                {
+                    new LineData("ALAN LENNOX-BOYD", "Over the past weeks, we have discussed security, finance, defense and the future form of government. We must now decide whether there is a workable path toward full self-government and independence."),
+                    new LineData("TUNKU ABDUL RAHMAN", "The Federation delegation is ready."),
+                    new LineData("ALAN LENNOX-BOYD", "Independence requires a constitution accepted by Malaya's institutions. How should that be prepared?")
+                },
                 new ChoiceData("Establish an independent constitutional commission and consult the communities of Malaya.", "ALAN LENNOX-BOYD", "That provides a structured way forward. The Commission can examine the Federation's constitutional arrangements and make recommendations before independence."),
                 new ChoiceData("Keep the existing constitutional system permanently unchanged.", "ALAN LENNOX-BOYD", "Then full self-government would be difficult to achieve. Independence requires constitutional arrangements suited to an independent Federation."),
                 new ChoiceData("Write an entirely new constitution immediately without consultation or review.", "ALAN LENNOX-BOYD", "Constitutional change of this scale requires careful examination. Moving immediately without review would risk leaving major questions unresolved.")),
@@ -309,7 +477,11 @@ namespace DefenderOfIndependence.EditorTools
                 new ChoiceData("By August 1957, allowing time for constitutional preparation while setting a clear and near-term goal.", "ALAN LENNOX-BOYD", "It is an ambitious timetable, but a definite target provides direction. If the constitutional work proceeds successfully, every effort can be made to achieve independence by then."),
                 new ChoiceData("Leave the date completely undefined.", "ALAN LENNOX-BOYD", "Without a target, the delegation would return to Malaya unable to say when the transition is expected to occur."),
                 new ChoiceData("Declare independence immediately, before constitutional preparations are completed.", "ALAN LENNOX-BOYD", "The desire for independence is understood, but the constitutional and administrative arrangements cannot simply be ignored.")),
-            new StepData("TUNKU ABDUL RAHMAN", "We have secured a path toward full self-government, constitutional reform and a target for independence. It is not the end of the work, but it may be the beginning of an independent Malaya.\n\nShall we move forward with the agreement?",
+            new StepData(new[]
+                {
+                    new LineData("TUNKU ABDUL RAHMAN", "We have secured a path toward full self-government, constitutional reform and a target for independence. It is not the end of the work, but it may be the beginning of an independent Malaya."),
+                    new LineData("TUNKU ABDUL RAHMAN", "Shall we move forward with the agreement?")
+                },
                 new ChoiceData("Yes. This gives Malaya a clear path toward independence.", "TUNKU ABDUL RAHMAN", "Then we move forward together. There is still much work ahead, but Malaya now has a destination - and a date toward which we can work."),
                 new ChoiceData("We should abandon the conference and begin again.", "TUNKU ABDUL RAHMAN", "Then everything achieved during these negotiations is placed in doubt. Without accepting a path forward, there can be no agreement from this conference."))
         };
@@ -317,13 +489,18 @@ namespace DefenderOfIndependence.EditorTools
         private static void Validate(Scene scene, LevelTwoConversationTrigger[] triggers)
         {
             LevelTwoConversationViewer viewer = FindUnique<LevelTwoConversationViewer>(scene);
+            LevelTwoConfirmationPanel confirmation = FindUnique<LevelTwoConfirmationPanel>(scene);
+            LevelTwoConversationCameraFocus focus = FindUnique<LevelTwoConversationCameraFocus>(scene);
             LevelTwoDoorInteractor interactor = FindUnique<LevelTwoDoorInteractor>(scene);
             SerializedObject interactorData = new SerializedObject(interactor);
-            if (viewer == null || triggers.Length != 6 || triggers.Any(item => item == null || item.InteractionCollider == null || item.StepCount == 0) ||
-                interactorData.FindProperty("conversations").arraySize != 6)
+            if (viewer == null || confirmation == null || focus == null || triggers.Length != 6 ||
+                triggers.Any(item => item == null || item.InteractionCollider == null || item.StepCount == 0) ||
+                triggers.Count(item => item.CameraFocusTarget != null) != 5 ||
+                interactorData.FindProperty("conversations").arraySize != 6 ||
+                interactorData.FindProperty("confirmationPanel").objectReferenceValue == null)
                 throw new InvalidOperationException("Level 2 conversation wiring is incomplete.");
 
-            Debug.Log("LEVEL2_CONVERSATION_VALID dailyTriggers=6 choices=mouse energy=1 once=true doors=paid-per-day finalDay=Alan-only");
+            Debug.Log("LEVEL2_CONVERSATION_VALID dailyTriggers=6 fungus=line-by-line choices=horizontal cameraFocus=5 radioFocus=false confirmations=energy+clock");
         }
 
         private static T FindUnique<T>(Scene scene) where T : Component

@@ -19,8 +19,15 @@ public static class LevelTwoConversationPlayModeSmoke
     private static LevelTwoDoorInteractor _interactor;
     private static LevelTwoFirstPersonController _player;
     private static LevelTwoScreenFader _fader;
+    private static LevelTwoConfirmationPanel _confirmation;
     private static int _expectedDay;
     private static bool _conversationTested;
+    private static bool _conversationStarted;
+    private static int _choicesMade;
+    private static int _expectedConversationSteps;
+    private static double _nextDialogueInput;
+    private static int _confirmationStage;
+    private static bool _confirmationActionRan;
     private static int _doorStage;
     private static double _deadline;
 
@@ -73,8 +80,9 @@ public static class LevelTwoConversationPlayModeSmoke
         _interactor = UnityEngine.Object.FindAnyObjectByType<LevelTwoDoorInteractor>();
         _player = UnityEngine.Object.FindAnyObjectByType<LevelTwoFirstPersonController>();
         _fader = UnityEngine.Object.FindAnyObjectByType<LevelTwoScreenFader>();
+        _confirmation = UnityEngine.Object.FindAnyObjectByType<LevelTwoConfirmationPanel>();
         if (_day == null || _viewer == null || _triggers.Length != 6 || _doors.Length != 3 ||
-            _interactor == null || _player == null || _fader == null)
+            _interactor == null || _player == null || _fader == null || _confirmation == null)
         {
             Fail("The Level 2 dialogue or door components did not load completely.");
             return;
@@ -83,7 +91,9 @@ public static class LevelTwoConversationPlayModeSmoke
         EditorApplication.update -= BeginWhenReady;
         _expectedDay = 1;
         _conversationTested = false;
+        _conversationStarted = false;
         _doorStage = 0;
+        _confirmationStage = 0;
         _deadline = EditorApplication.timeSinceStartup + 75d;
         EditorApplication.update += Tick;
     }
@@ -97,6 +107,12 @@ public static class LevelTwoConversationPlayModeSmoke
         }
 
         if (_day.IsTransitioning || _fader.IsTransitioning) return;
+
+        if (_confirmationStage < 2)
+        {
+            TestConfirmationPanel();
+            return;
+        }
         if (_day.CurrentDay != _expectedDay)
         {
             Fail($"Expected Day {_expectedDay}, observed Day {_day.CurrentDay}.");
@@ -148,6 +164,37 @@ public static class LevelTwoConversationPlayModeSmoke
 
         _expectedDay++;
         _conversationTested = false;
+        _conversationStarted = false;
+    }
+
+    private static void TestConfirmationPanel()
+    {
+        if (_confirmationStage == 0)
+        {
+            _confirmationActionRan = false;
+            if (!_confirmation.Show("TEST CONFIRMATION", "Confirm this interaction.", "WARNING TEST", () =>
+                {
+                    _confirmationActionRan = true;
+                    return false;
+                }) || !_confirmation.IsOpen || !_player.UiCursorActive || _player.ControlsEnabled)
+            {
+                Fail("Confirmation panel did not open with gameplay paused and the pointer enabled.");
+                return;
+            }
+
+            _confirmation.Confirm();
+            _confirmationStage = 1;
+            return;
+        }
+
+        if (_confirmation.IsOpen) return;
+        if (!_confirmationActionRan || !_player.ControlsEnabled || _player.UiCursorActive)
+        {
+            Fail("Confirmation panel did not run its confirmed action and restore gameplay.");
+            return;
+        }
+
+        _confirmationStage = 2;
     }
 
     private static void TestDoorSequence()
@@ -192,27 +239,49 @@ public static class LevelTwoConversationPlayModeSmoke
 
     private static void TestConversation(LevelTwoConversationTrigger trigger)
     {
-        int energyBefore = _day.CurrentEnergy;
-        if (!trigger.TryBegin(_viewer, _day) || !_viewer.IsOpen || _player.ControlsEnabled ||
-            _day.CurrentEnergy != energyBefore - 1 || !_player.UiCursorActive)
+        if (!_conversationStarted)
         {
-            Fail($"Day {_expectedDay} conversation did not open with pointer control and a 1-Energy cost.");
+            int energyBefore = _day.CurrentEnergy;
+            if (!trigger.TryBegin(_viewer, _day) || !_viewer.IsOpen || _player.ControlsEnabled ||
+                _day.CurrentEnergy != energyBefore - 1 || _player.UiCursorActive)
+            {
+                Fail($"Day {_expectedDay} conversation did not open as a keyboard-driven Fungus dialogue with a 1-Energy cost.");
+                return;
+            }
+
+            _expectedConversationSteps = _expectedDay == 6 ? 3 : 1;
+            _choicesMade = 0;
+            _conversationStarted = true;
+            _nextDialogueInput = EditorApplication.timeSinceStartup + 0.08d;
             return;
         }
 
-        int expectedSteps = _expectedDay == 6 ? 3 : 1;
-        for (int step = 0; step < expectedSteps; step++)
+        if (_viewer.IsOpen)
         {
-            if (_viewer.CurrentStepIndex != step)
+            if (_viewer.IsWaitingForChoice)
             {
-                Fail($"Day {_expectedDay} dialogue step order is incorrect.");
+                if (!_player.UiCursorActive || _viewer.CurrentStepIndex != _choicesMade)
+                {
+                    Fail($"Day {_expectedDay} did not enable the pointer for its horizontal response choices.");
+                    return;
+                }
+
+                _viewer.SelectChoice(0);
+                _choicesMade++;
+                _nextDialogueInput = EditorApplication.timeSinceStartup + 0.08d;
                 return;
             }
-            _viewer.SelectChoice(0);
-            _viewer.Continue();
+
+            if (EditorApplication.timeSinceStartup >= _nextDialogueInput)
+            {
+                _viewer.Continue();
+                _nextDialogueInput = EditorApplication.timeSinceStartup + 0.08d;
+            }
+            return;
         }
 
-        if (_viewer.IsOpen || !_player.ControlsEnabled || _player.UiCursorActive || !trigger.WasConsumed ||
+        if (!_player.ControlsEnabled) return;
+        if (_choicesMade != _expectedConversationSteps || _player.UiCursorActive || !trigger.WasConsumed ||
             trigger.TryBegin(_viewer, _day) || !trigger.GetPrompt(_day).StartsWith("NO CONVERSATION"))
         {
             Fail($"Day {_expectedDay} conversation did not close and remain consumed.");
@@ -224,7 +293,7 @@ public static class LevelTwoConversationPlayModeSmoke
 
     private static void Pass()
     {
-        Debug.Log("LEVEL_TWO_CONVERSATION_PLAYMODE_OK: six one-time paid dialogues, pointer choices, Day 6 three-step finale, daily door payment, free exit/re-entry, final-day lockdown.");
+        Debug.Log("LEVEL_TWO_CONVERSATION_PLAYMODE_OK: confirmation animation/pointer, six one-time Fungus line dialogues, horizontal pointer choices, character camera restore, Day 6 three-step finale, daily door payment, free exit/re-entry, final-day lockdown.");
         Complete("PASS");
     }
 

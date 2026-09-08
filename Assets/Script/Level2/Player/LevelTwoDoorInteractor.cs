@@ -17,6 +17,7 @@ namespace DefenderOfIndependence.Level2
         [SerializeField] private LevelTwoDocumentLocation[] documents;
         [SerializeField] private LevelTwoConversationViewer conversationViewer;
         [SerializeField] private LevelTwoConversationTrigger[] conversations;
+        [SerializeField] private LevelTwoConfirmationPanel confirmationPanel;
         [SerializeField, Min(0.1f)] private float interactionRange = 1.8f;
 
         private LevelTwoDoorTransition _nearestDoor;
@@ -34,7 +35,8 @@ namespace DefenderOfIndependence.Level2
         private void Update()
         {
             if (playerController == null || screenFader == null || !playerController.ControlsEnabled ||
-                screenFader.IsTransitioning || (documentViewer != null && documentViewer.IsOpen))
+                screenFader.IsTransitioning || (documentViewer != null && documentViewer.IsOpen) ||
+                (confirmationPanel != null && confirmationPanel.IsOpen))
             {
                 SetPromptVisible(false);
                 return;
@@ -74,23 +76,81 @@ namespace DefenderOfIndependence.Level2
             {
                 if (aimedDocument != null)
                 {
-                    aimedDocument.TryExamine(documentViewer, dayController);
+                    RequestDocument(aimedDocument);
                     SetPromptVisible(false);
                 }
                 else if (aimedConversation != null)
                 {
-                    aimedConversation.TryBegin(conversationViewer, dayController);
+                    RequestConversation(aimedConversation);
                     SetPromptVisible(false);
                 }
                 else if (clockIsNearest)
                 {
-                    nextDayClock.TryUse();
+                    RequestNextDay();
                 }
                 else
                 {
-                    TryInteractNearest();
+                    RequestDoor(_nearestDoor);
                 }
             }
+        }
+
+        private void RequestDocument(LevelTwoDocumentLocation document)
+        {
+            if (document == null || !document.CanExamine(dayController)) return;
+            if (!document.RequiresConfirmation)
+            {
+                document.TryExamine(documentViewer, dayController);
+                return;
+            }
+
+            confirmationPanel?.Show(
+                "EXAMINE DOCUMENT?",
+                $"Spend {document.EnergyCost} Energy to examine one historical document. Each document can only be found once.",
+                string.Empty,
+                () => document.TryExamine(documentViewer, dayController));
+        }
+
+        private void RequestConversation(LevelTwoConversationTrigger conversation)
+        {
+            if (conversation == null || !conversation.CanBegin(dayController)) return;
+            confirmationPanel?.Show(
+                "BEGIN CONVERSATION?",
+                $"Spend {conversation.EnergyCost} Energy to speak with {conversation.ConversationDisplayName}. This conversation can only happen once.",
+                string.Empty,
+                () => conversation.TryBegin(conversationViewer, dayController));
+        }
+
+        private void RequestNextDay()
+        {
+            if (nextDayClock == null || dayController == null || !dayController.CanAdvanceDay) return;
+            string warning = dayController.CurrentEnergy > 0
+                ? $"WARNING: You still have {dayController.CurrentEnergy} Energy. Unused Energy will be lost when the day ends."
+                : string.Empty;
+            confirmationPanel?.Show(
+                "END THE DAY?",
+                $"Finish Day {dayController.CurrentDay} and continue to Day {dayController.CurrentDay + 1}?",
+                warning,
+                nextDayClock.TryUse);
+        }
+
+        private void RequestDoor(LevelTwoDoorTransition door)
+        {
+            if (door == null || door.IsLocked(transform.position, dayController)) return;
+            int currentDay = dayController != null ? dayController.CurrentDay : -1;
+            if (!door.RequiresEntryEnergy(transform.position, currentDay))
+            {
+                TryInteractDoor(door);
+                return;
+            }
+
+            if (dayController == null || dayController.CurrentEnergy < 1) return;
+
+            confirmationPanel?.Show(
+                "ENTER ROOM?",
+                $"Spend 1 Energy to enter {door.RoomDisplayName}. Re-entry is free for the rest of this day.",
+                string.Empty,
+                () => TryInteractDoor(door));
         }
 
         private LevelTwoConversationTrigger FindAimedConversation()
@@ -151,6 +211,11 @@ namespace DefenderOfIndependence.Level2
             }
 
             LevelTwoDoorTransition door = FindNearestDoor(out _);
+            return TryInteractDoor(door);
+        }
+
+        private bool TryInteractDoor(LevelTwoDoorTransition door)
+        {
             if (door == null)
             {
                 return false;

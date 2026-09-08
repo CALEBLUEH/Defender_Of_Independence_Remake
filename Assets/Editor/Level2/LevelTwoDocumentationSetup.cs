@@ -97,12 +97,15 @@ namespace DefenderOfIndependence.EditorTools
             DestroyChild(dayHud, PanelName);
             DestroyChild(dayHud, EnergyName);
             TMP_Text energyText = CreateEnergyDisplay(dayHud);
-            CreateDocumentPanel(dayHud, out GameObject panel, out TMP_Text title, out GameObject dayPromptRoot,
+            CreateDocumentPanel(dayHud, out GameObject panel, out RectTransform documentWindow,
+                out CanvasGroup documentWindowGroup, out TMP_Text title, out GameObject dayPromptRoot,
                 out TMP_Text dayPrompt, out TMP_Text body, out ScrollRect scroll, out Button closeButton);
 
             LevelTwoDocumentViewer viewer = dayController.GetComponent<LevelTwoDocumentViewer>() ??
                                            dayController.gameObject.AddComponent<LevelTwoDocumentViewer>();
             SetReference(viewer, "panel", panel);
+            SetReference(viewer, "documentWindow", documentWindow);
+            SetReference(viewer, "documentWindowCanvasGroup", documentWindowGroup);
             SetReference(viewer, "titleText", title);
             SetReference(viewer, "dayPromptRoot", dayPromptRoot);
             SetReference(viewer, "dayPromptText", dayPrompt);
@@ -173,7 +176,8 @@ namespace DefenderOfIndependence.EditorTools
             return text;
         }
 
-        private static void CreateDocumentPanel(Transform parent, out GameObject panel, out TMP_Text title,
+        private static void CreateDocumentPanel(Transform parent, out GameObject panel, out RectTransform documentWindow,
+            out CanvasGroup documentWindowGroup, out TMP_Text title,
             out GameObject dayPromptRoot, out TMP_Text dayPrompt, out TMP_Text body, out ScrollRect scroll,
             out Button closeButton)
         {
@@ -190,6 +194,8 @@ namespace DefenderOfIndependence.EditorTools
             Image window = CreateImage(overlay.transform, "Document Window", panelSprite, new Color(0.86f, 0.79f, 0.63f, 1f));
             window.type = Image.Type.Sliced;
             SetRect(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1180f, 820f));
+            documentWindow = window.rectTransform;
+            documentWindowGroup = window.gameObject.AddComponent<CanvasGroup>();
 
             title = CreateText(window.transform, "Document Title", titleFont, "DOCUMENT", 38f,
                 new Color(0.18f, 0.10f, 0.045f), TextAlignmentOptions.Center);
