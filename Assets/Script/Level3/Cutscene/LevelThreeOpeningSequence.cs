@@ -37,6 +37,7 @@ public sealed class LevelThreeOpeningSequence : MonoBehaviour
     public bool IsTransitioning { get; private set; }
     public bool IsComplete { get; private set; }
     public float FadeAlpha => fadeOverlay != null ? fadeOverlay.alpha : 0f;
+    public UnityEvent SequenceFinishedEvent => onSequenceFinished;
     public event Action SequenceCompleted;
 
     private void Awake()
@@ -73,19 +74,22 @@ public sealed class LevelThreeOpeningSequence : MonoBehaviour
 
         PlayClip(camera1Animator, camera1Clip);
         yield return WaitForSequenceSeconds(GetClipLength(camera1Clip));
-        HoldAnimator(camera1Animator);
+        FreezeAtLastFrame(camera1Animator, camera1Clip);
 
-        yield return TransitionToShot(2);
-        PlayClip(camera2Animator, camera2Clip);
-        PlayClip(tunkuAbdulRahmanAnimator, tunkuAbdulRahmanClip);
-        yield return WaitForSequenceSeconds(Mathf.Max(GetClipLength(camera2Clip), GetClipLength(tunkuAbdulRahmanClip)));
-        HoldAnimator(camera2Animator);
+        float shot2Length = Mathf.Max(GetClipLength(camera2Clip), GetClipLength(tunkuAbdulRahmanClip));
+        yield return TransitionToShot(2, () =>
+        {
+            PlayClip(camera2Animator, camera2Clip);
+            PlayClip(tunkuAbdulRahmanAnimator, tunkuAbdulRahmanClip);
+        });
+        yield return WaitForSequenceSeconds(Mathf.Max(0f, shot2Length - transitionHalfDuration));
+        FreezeAtLastFrame(camera2Animator, camera2Clip);
         HoldAnimator(tunkuAbdulRahmanAnimator);
 
-        yield return TransitionToShot(3);
-        PlayClip(camera3Animator, camera3Clip);
-        yield return WaitForSequenceSeconds(GetClipLength(camera3Clip));
-        HoldAnimator(camera3Animator);
+        float shot3Length = GetClipLength(camera3Clip);
+        yield return TransitionToShot(3, () => PlayClip(camera3Animator, camera3Clip));
+        yield return WaitForSequenceSeconds(Mathf.Max(0f, shot3Length - transitionHalfDuration));
+        FreezeAtLastFrame(camera3Animator, camera3Clip);
 
         IsComplete = true;
         sequenceRoutine = null;
@@ -93,11 +97,17 @@ public sealed class LevelThreeOpeningSequence : MonoBehaviour
         SequenceCompleted?.Invoke();
     }
 
-    private IEnumerator TransitionToShot(int shotNumber)
+    private IEnumerator TransitionToShot(int shotNumber, Action startShotAtBlack)
     {
         IsTransitioning = true;
         yield return Fade(0f, 1f, transitionHalfDuration);
+
+        // Keep one rendered frame fully black before and after the camera swap.
+        // This prevents an Animator end-state evaluation from ever becoming visible.
+        yield return null;
         SetShot(shotNumber);
+        startShotAtBlack?.Invoke();
+        yield return null;
         yield return Fade(1f, 0f, transitionHalfDuration);
         IsTransitioning = false;
     }
@@ -175,8 +185,10 @@ public sealed class LevelThreeOpeningSequence : MonoBehaviour
         animator.gameObject.SetActive(true);
         animator.enabled = true;
         animator.updateMode = AnimatorUpdateMode.UnscaledTime;
-        animator.speed = playbackSpeed;
         animator.Rebind();
+        // Rebind restores authored Animator state, including the previously held speed.
+        // Apply playback speed afterwards so the shot starts on this fully black frame.
+        animator.speed = playbackSpeed;
 
         int stateHash = Animator.StringToHash(clip.name);
         if (!animator.HasState(0, stateHash))
@@ -193,6 +205,17 @@ public sealed class LevelThreeOpeningSequence : MonoBehaviour
     {
         if (animator == null) return;
         animator.speed = 0f;
+    }
+
+    private static void FreezeAtLastFrame(Animator animator, AnimationClip clip)
+    {
+        if (animator == null || clip == null) return;
+
+        animator.speed = 0f;
+        animator.enabled = false;
+        // Sampling exactly at a non-looping clip's length can wrap to its first frame.
+        // Stay just inside the clip so the authored final pose is held during the fade.
+        clip.SampleAnimation(animator.gameObject, Mathf.Max(0f, clip.length - 0.0001f));
     }
 
     private void SetAnimatorSpeed(Animator animator)

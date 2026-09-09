@@ -3,10 +3,12 @@
 `Scene_Level3` begins behind a black overlay, fades into Camera 1, and plays the three authored shots in order:
 
 1. Camera 1 plays `CameraAnimation`.
-2. The screen fades to black for one second, switches cameras, then fades in for one second. Camera 2 and `TunkuAbdulRahmanAnimation` then play together.
-3. The same two-second black transition switches to Camera 3, which plays `CameraAnimation3` and remains active on its final frame.
+2. The screen fades to black for one second. While fully black, it switches to Camera 2 and starts Camera 2 plus `TunkuAbdulRahmanAnimation`; both animations continue while the black overlay fades away.
+3. The same two-second black transition switches to Camera 3 and starts `CameraAnimation3` underneath its fade-in. Camera 3 remains active on its final frame.
 
-There is intentionally no fade after Camera 3. The `On Sequence Finished` event on `Level 3 Opening Sequence` is ready for the gameplay UI panel that will be connected later.
+There is intentionally no fade after Camera 3. The `On Sequence Finished` event on `Level 3 Opening Sequence` now fades in the authored Level 3 tutorial gameplay UI.
+
+Camera 1 is explicitly sampled just inside its last keyed frame before the first transition. Sampling at the exact clip length could wrap to frame zero and flash its starting transform. The fade now holds a fully black rendered frame, swaps and starts Camera 2/Tunku, holds black for another frame, and then fades in.
 
 ## Inspector controls
 

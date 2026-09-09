@@ -70,6 +70,20 @@ Sources: `ProjectSettings/ProjectVersion.txt`, `ProjectSettings/GraphicsSettings
 
 The remake is early-stage and has no established gameplay architecture beyond Starter Assets. Prefer feature folders, Inspector-assigned references, serialized tuning values, and small components. Do not import unrelated senior-project systems merely to satisfy a scene reference.
 
+## Level 3 opening and tutorial UI
+
+- `Scene_Level3` plays Camera 1, Camera 2 with Tunku Abdul Rahman, then Camera 3. Camera swaps occur only behind a fully opaque two-sided black fade; each outgoing camera is sampled and frozen on its final keyed frame before fading.
+- Camera 2's original keyframes are preserved, but its clip is now non-Legacy and non-looping like the other camera clips so all three shots use Animator controllers consistently.
+- Camera 3 completion invokes the serialized `On Sequence Finished` event, which fades in `Level 3 Gameplay UI`.
+- The Level 3 tutorial uses paired non-interactable Sliders that visibly drain inward. `[TYPE:...]` phrases remain grey until correctly typed, highlight typed characters, repeat the page timer when incomplete, and advance only at timer zero.
+- A higher-sorting incident tutorial panel has its own paired timer and a randomized 1–2 second arrival delay. Left Tab swaps the selected glowing border, switching away clears partial input, and finishing the incident phrase deactivates it immediately. The main page remains blocked until the incident resolves.
+- The tutorial reveals a three-point top-right health HUD only on its health-introduction page, then `I'm ready!` starts `LevelThreeTypingGameplay` through a serialized completion event.
+- Level 3 main gameplay contains the assignment's ordered speech and seven final `MERDEKA` entries. Main entries advance at timer zero even when missed; scheduled incidents run independently, spawn within the canvas at randomized positions, and separate their prompt and repair phrase with a blank line. Either kind of miss removes shared health, and the third miss opens the failure overlay. Gameplay completion exposes an Inspector event for the later credits flow.
+- Main speech timing is balanced per line through a custom Inspector section with a labelled duration beside every speech preview. Short defaults are 4 seconds and the longest passage defaults to 16 seconds; the original global value remains a safe fallback.
+- The tutorial offers a pulsing bottom-centre `Hold Space` prompt with a three-second progress rail. Releasing early resets it; completing the hold jumps to the final `I'm ready!` page and deactivates the prompt.
+- Level 3 failure recovery no longer reloads the scene. `R` uses the existing top-sorting black overlay, resets health and gameplay behind black, resumes at the final tutorial ready-check with its timer paused during the fade, and restarts gameplay only after that phrase is completed.
+- The Level 3 health art is Lorc's `Heart inside` icon from Game-icons.net under CC BY 3.0; attribution is stored beside the imported PNG in `Assets/Level3/UI/Health/SOURCE.md`.
+
 ## Testing and tooling
 
 - Unity Test Framework is available transitively, but no first-party EditMode or PlayMode tests were found.
@@ -91,6 +105,7 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - The Level 2 gameplay authoring pass compiled under Unity 6000.5.0f1 and persisted a model-less CharacterController player, initial-spawn reference, three explicit door/spawn pairs, an Inspector-editable C prompt, and an unscaled-time black fade overlay without rebuilding the user's environment or furniture roots.
 - The Level 2 day-system Play Mode smoke test advanced from Day 1 through Day 6, returned the player to `PlayerInitialSpawnPoint` after every clock use, verified daily character visibility counts of 1/1/1/0/1/2, and confirmed the clock cannot advance past the final day. A separate persistence pass reloaded all clock, HUD, briefing, and marker references.
 - The Level 3 environment import compiled and passed a persistence validation for all three prefabs plus the saved stadium scene instance. A focused Play Mode smoke test instantiated the Malaysia flag and observed its rig transform animation advance to normalized time 0.166. The exact visual framing and final prop placement remain manual Scene-view work.
+- The Level 3 camera/UI PlayMode regression suite covers Camera 1 retaining its final pose, Camera 2 and Tunku moving beneath the black fade-in, all timer Sliders counting down, tutorial repetition, delayed/immediate incident resolution, health reveal, tutorial-to-gameplay handoff, randomized incident canvas containment, blank-line incident formatting, health Slider synchronization, and failure after three combined misses.
 
 ## Important constraints and risks
 
