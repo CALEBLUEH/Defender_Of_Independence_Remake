@@ -13,6 +13,7 @@ public static class CreditsPlayModeSmoke
     private const string ActiveKey = "Defender.CreditsSmoke.Active";
     private const string ResultKey = "Defender.CreditsSmoke.Result";
     private static double deadline;
+    private static double finishRequestedAt;
     private static int stage;
 
     static CreditsPlayModeSmoke()
@@ -102,13 +103,29 @@ public static class CreditsPlayModeSmoke
             }
             finish.Invoke(controller, null);
             stage = 2;
+            finishRequestedAt = EditorApplication.timeSinceStartup;
             deadline = EditorApplication.timeSinceStartup + 8d;
             return;
         }
 
-        if (stage == 2 && SceneManager.GetActiveScene().name == "Scene_Gallery")
+        if (stage == 2)
         {
-            Debug.Log("CREDITS_PLAYMODE_OK: Completion route showed its message context, the 1920x1080 MP4 played with an audio target, and the skip/end path faded into Scene_Gallery.");
+            CreditVideoController controller = UnityEngine.Object.FindFirstObjectByType<CreditVideoController>();
+            if (SceneManager.GetActiveScene().name != "Scene_Credits" || controller == null)
+            {
+                Fail("The completion route left credits before showing the post-video thank-you message.");
+                return;
+            }
+            if (controller.CompletionMessageAlpha > 0.5f && EditorApplication.timeSinceStartup > finishRequestedAt + 0.5d)
+            {
+                stage = 3;
+            }
+            return;
+        }
+
+        if (stage == 3 && SceneManager.GetActiveScene().name == "Scene_Gallery")
+        {
+            Debug.Log("CREDITS_PLAYMODE_OK: The MP4 played with an audio target, the completion message appeared only after playback finished, and the finish path faded into Scene_Gallery.");
             Complete("PASS");
         }
     }

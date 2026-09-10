@@ -42,6 +42,7 @@ public sealed class CreditVideoController : MonoBehaviour
     public bool ShowsCompletionMessage => playbackRequest.ShowCompletionMessage;
     public bool AcceptsSkipInput => acceptsSkipInput;
     public float SkipProgress => skipHoldDuration <= 0f ? 0f : Mathf.Clamp01(skipHoldElapsed / skipHoldDuration);
+    public float CompletionMessageAlpha => completionMessageGroup != null ? completionMessageGroup.alpha : 0f;
 
     private void Awake()
     {
@@ -98,13 +99,6 @@ public sealed class CreditVideoController : MonoBehaviour
     private IEnumerator PlayCredits()
     {
         videoPlayer.Prepare();
-
-        if (playbackRequest.ShowCompletionMessage)
-        {
-            yield return FadeGroup(completionMessageGroup, 0f, 1f, completionMessageFadeDuration);
-            yield return WaitUnscaled(completionMessageHoldDuration);
-            yield return FadeGroup(completionMessageGroup, 1f, 0f, completionMessageFadeDuration);
-        }
 
         float elapsed = 0f;
         while (!videoPlayer.isPrepared && elapsed < prepareTimeout)
@@ -178,6 +172,14 @@ public sealed class CreditVideoController : MonoBehaviour
         yield return FadeGroup(blackFadeOverlay, blackFadeOverlay != null ? blackFadeOverlay.alpha : 0f, 1f,
             exitFadeDuration, true);
         videoPlayer.Stop();
+        if (playbackRequest.ShowCompletionMessage)
+        {
+            yield return FadeGroup(completionMessageGroup, 0f, 1f, completionMessageFadeDuration);
+            yield return WaitUnscaled(completionMessageHoldDuration);
+            yield return FadeGroup(completionMessageGroup, 1f, 0f, completionMessageFadeDuration);
+        }
+        if (playbackRequest.ReturnToVideoSpawn) GallerySpawnSession.RequestVideoSpawn();
+        else GallerySpawnSession.RequestInitialSpawn();
         SceneManager.LoadScene(playbackRequest.DestinationScene);
     }
 

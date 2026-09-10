@@ -6,9 +6,9 @@ Completing the final Level 3 typing line invokes `LevelThreeCreditTransition.Beg
 
 `Scene_Credits` contains an Inspector-authored full-screen `VideoPlayer`, camera, 2D `AudioSource`, completion-message panel, black fade, and bottom skip prompt. The supplied 1920 × 1080, 60-second `CreditVideo.mp4` is assigned directly as a `VideoClip`; its single audio track is routed to the AudioSource.
 
-- Level completion requests the completion-message route. Its body copy is editable on `Credit Playback Camera > Credit Video Controller > Completion Message`.
+- Level completion requests the completion-message route. The video plays first; after it ends or is skipped, the screen fades black and shows the message before loading the Gallery. Its body copy is editable on `Credit Playback Camera > Credit Video Controller > Completion Message`.
 - Entering the credits scene without a request behaves as direct Gallery playback and omits the completion message.
-- A future Gallery interaction can call `CreditPlaybackSession.RequestFromGallery()` immediately before loading `Scene_Credits`.
+- `CreditVideoPicture` calls `CreditPlaybackSession.RequestFromGallery()` before loading `Scene_Credits`, omits the completion message, and returns the Gallery player to `VideoSpawnPoint`.
 - Holding Space for three seconds fills the bottom progress rail and uses the same fade-to-Gallery path as natural video completion.
 - The video uses `Fit Inside` aspect handling. At non-16:9 resolutions the entire frame remains visible with black bars instead of being cropped.
 
@@ -27,4 +27,4 @@ The hall's seven 8K source textures import with streaming mipmaps, compressed ru
 
 ## Manual check
 
-Finish Level 3 and confirm the two-second fade reaches black before the completion message, the video appears edge-to-edge at 16:9 with sound, and natural completion loads `Scene_Gallery`. Repeat and hold Space for three seconds; confirm the progress rail resets if released early and a completed hold fades to the same Gallery scene. Finally inspect the main-menu and Gallery scenes and adjust the named model-instance root transforms for the intended framing.
+Finish Level 3 and confirm the two-second fade reaches black before the video, the video appears edge-to-edge at 16:9 with sound, and the completion message appears only after playback. Repeat and hold Space for three seconds; confirm the progress rail resets if released early and a completed hold shows the same post-video message before loading the Gallery. Replaying from the Gallery must omit that message.
