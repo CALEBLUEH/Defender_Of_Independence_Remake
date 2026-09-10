@@ -125,7 +125,7 @@ public static class GalleryQuizSetup
         SetReferenceArray(controller, "answerLabels", labels.Cast<UnityEngine.Object>().ToArray());
         SetReference(controller, "answersRoot", answersRoot); SetReference(controller, "resultRoot", resultRoot);
         SetReference(controller, "resultText", result); SetReference(controller, "retryButton", retry); SetReference(controller, "quitButton", quit);
-        SetQuestions(controller); EditorUtility.SetDirty(controller);
+        ApplyStandardQuestions(controller); EditorUtility.SetDirty(controller);
         return controller;
     }
 
@@ -166,7 +166,7 @@ public static class GalleryQuizSetup
         serialized.ApplyModifiedPropertiesWithoutUndo(); return exhibit;
     }
 
-    private static void SetQuestions(GalleryQuizController controller)
+    public static void ApplyStandardQuestions(GalleryQuizController controller)
     {
         SerializedObject serialized = new SerializedObject(controller);
         SerializedProperty questions = serialized.FindProperty("questions"); questions.arraySize = Questions.Length;

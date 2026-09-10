@@ -38,6 +38,7 @@ public sealed class CreditVideoController : MonoBehaviour
     private float skipHoldElapsed;
     private bool acceptsSkipInput;
     private bool isFinishing;
+    private bool isPaused;
 
     public bool ShowsCompletionMessage => playbackRequest.ShowCompletionMessage;
     public bool AcceptsSkipInput => acceptsSkipInput;
@@ -75,7 +76,7 @@ public sealed class CreditVideoController : MonoBehaviour
 
     private void Update()
     {
-        if (!acceptsSkipInput || isFinishing) return;
+        if (isPaused || !acceptsSkipInput || isFinishing) return;
 
         if (Input.GetKey(KeyCode.Space))
         {
@@ -165,6 +166,25 @@ public sealed class CreditVideoController : MonoBehaviour
         SetGroup(skipPromptGroup, 0f, false);
         if (flowRoutine != null) StopCoroutine(flowRoutine);
         flowRoutine = StartCoroutine(FadeOutAndLoadDestination());
+    }
+
+    public void SkipVideo()
+    {
+        BeginFinish();
+    }
+
+    public void SetPaused(bool paused)
+    {
+        if (isFinishing || videoPlayer == null) return;
+        isPaused = paused;
+        if (paused)
+        {
+            if (videoPlayer.isPlaying) videoPlayer.Pause();
+        }
+        else if (videoPlayer.isPrepared && acceptsSkipInput)
+        {
+            videoPlayer.Play();
+        }
     }
 
     private IEnumerator FadeOutAndLoadDestination()

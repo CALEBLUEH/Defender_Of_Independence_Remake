@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using DefenderOfIndependence.SceneFlow;
 
 public sealed class LevelThreeCreditTransition : MonoBehaviour
 {
@@ -43,6 +44,7 @@ public sealed class LevelThreeCreditTransition : MonoBehaviour
         }
 
         CreditPlaybackSession.RequestFromLevelCompletion(gallerySceneName);
+        GameProgressionState.UnlockPostGame();
         SceneManager.LoadScene(creditsSceneName);
     }
 }

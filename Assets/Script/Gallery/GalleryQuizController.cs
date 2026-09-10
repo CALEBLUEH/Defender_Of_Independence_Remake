@@ -28,6 +28,7 @@ public sealed class GalleryQuizController : MonoBehaviour
     [SerializeField] private GameObject resultRoot;
     [SerializeField] private TMP_Text resultText;
     [SerializeField] private Button retryButton;
+    [SerializeField] private Button continueButton;
     [SerializeField] private Button quitButton;
     [SerializeField] private GalleryQuizQuestion[] questions;
 
@@ -35,11 +36,21 @@ public sealed class GalleryQuizController : MonoBehaviour
     private int questionIndex;
     private int correctCount;
 
+    public event Action<int, int> Completed;
+
     public bool IsOpen { get; private set; }
     public int CorrectCount => correctCount;
     public int QuestionIndex => questionIndex;
     public int QuestionCount => questions != null ? questions.Length : 0;
     public bool IsComplete => IsOpen && resultRoot != null && resultRoot.activeSelf;
+    public int CurrentCorrectDisplaySlot
+    {
+        get
+        {
+            if (!IsOpen || IsComplete || questions == null || questionIndex >= questions.Length) return -1;
+            return Array.IndexOf(answerOrder, questions[questionIndex].CorrectAnswerIndex);
+        }
+    }
 
     private void Awake()
     {
@@ -49,6 +60,7 @@ public sealed class GalleryQuizController : MonoBehaviour
             answerButtons[index].onClick.AddListener(() => SelectAnswer(capturedIndex));
         }
         retryButton?.onClick.AddListener(BeginQuiz);
+        continueButton?.onClick.AddListener(ConfirmResult);
         quitButton?.onClick.AddListener(Close);
         SetVisible(false);
     }
@@ -76,6 +88,15 @@ public sealed class GalleryQuizController : MonoBehaviour
         IsOpen = false;
         SetVisible(false);
         playerController?.SetControlsEnabled(true);
+    }
+
+    public void ConfirmResult()
+    {
+        if (!IsComplete) return;
+        int finalCorrect = correctCount;
+        int finalTotal = QuestionCount;
+        Close();
+        Completed?.Invoke(finalCorrect, finalTotal);
     }
 
     private void BeginQuiz()
