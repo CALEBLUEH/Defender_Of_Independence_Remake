@@ -2977,6 +2977,7 @@ GameObject:
   - component: {fileID: 953792126}
   - component: {fileID: 953792125}
   - component: {fileID: 953792131}
+  - component: {fileID: 953792132}
   m_Layer: 0
   m_Name: Level 3 Gameplay UI
   m_TagString: Untagged
@@ -3282,10 +3283,38 @@ MonoBehaviour:
   pendingWordColor: {r: 0.554717, g: 0.554717, b: 0.554717, a: 1}
   onGameplayCompleted:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 953792132}
+        m_TargetAssemblyTypeName: LevelThreeCreditTransition, Assembly-CSharp
+        m_MethodName: BeginCreditsFromLevelCompletion
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   tutorialPanel: {fileID: 953792125}
   restartFadeOverlay: {fileID: 971288116}
   restartFadeHalfDuration: 0.75
+--- !u!114 &953792132
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 953792124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 065526ce81c050b489fcbea68ed916e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelThreeCreditTransition
+  creditsSceneName: Scene_Credits
+  gallerySceneName: Scene_Gallery
+  blackFadeOverlay: {fileID: 971288116}
+  fadeDuration: 2
 --- !u!1 &954497552
 GameObject:
   m_ObjectHideFlags: 0

@@ -58,7 +58,7 @@ Sources: `ProjectSettings/ProjectVersion.txt`, `ProjectSettings/GraphicsSettings
 
 ## Scenes and startup flow
 
-- The current flow is `Scene_MainMenu` → `Cutscene_Level1` → `Scene_Level1` → `Cutscene_Level2` → `Scene_Level2` → `Cutscene_Level3` → `Scene_Level3`.
+- The current flow is `Scene_MainMenu` → `Cutscene_Level1` → `Scene_Level1` → `Cutscene_Level2` → `Scene_Level2` → `Cutscene_Level3` → `Scene_Level3` → `Scene_Credits` → `Scene_Gallery`.
 - `Scene_Level1` opens on a paused, scrollable instruction panel. START MISSION enables player controls and begins the initial enemy wave.
 - `Cutscene_Level2` contains seven Fungus dialogue beats and loads `Scene_Level2` after its final Space prompt.
 - `Scene_Level2` contains the imported interior house at the origin under `Level 2 Environment`, the user's room decoration, and a model-less WASD/mouse first-person player under `Level 2 Gameplay`. Three C-interaction doors use paired Enter/Exit markers and a black fade transition. The player exposes `ReturnToInitialSpawn()` for the future day-skip flow.
@@ -121,6 +121,9 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - Level 2 third-party sources and licences are recorded in `Assets/Level2/Art/THIRD_PARTY_SOURCES.md`. Furniture Set 03 is CC BY-NC-SA 4.0, so it must not be used for a commercial release without replacement or separate permission, and share-alike obligations need review before distribution.
 - All three Level 3 downloads are CC BY 4.0. Required credits, including the Malaysia flag's underlying “Animated Flag” source, are recorded in `Assets/Level3/THIRD_PARTY_SOURCES.md` and `Assets/Level3/Licenses`.
 - The stadium FBX has no source normals. Unity recalculates them during import; this is currently a non-blocking visual warning but should be considered if the stadium is later given normal-mapped materials.
+- Level 3 completion now fades through the existing black overlay into a reusable full-screen credits scene. The level-completion route shows an Inspector-editable thank-you message; direct Gallery playback can use `CreditPlaybackSession.RequestFromGallery()` to omit it. Natural video completion and the three-second hold-Space skip both fade into `Scene_Gallery`.
+- Main-menu sky-dome and Tugu Negara prefabs are placed under an editable environment root. The Hintze Hall FBX is placed in the Gallery with explicit URP wall/decor/floor/glass materials; its large textures use streaming mipmaps and a 4096 import cap. The Picture Frame is prefab-only. Third-party model credits are recorded under each feature's `Art/THIRD_PARTY_SOURCES.md`.
+- The supplied Hintze Hall archive contained no local licence file. Its Sketchfab listing identifies Creative Commons Attribution but the exact licence version must be reconfirmed before public release.
 
 ## Source files inspected
 
