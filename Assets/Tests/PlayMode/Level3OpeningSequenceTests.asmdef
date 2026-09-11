@@ -2,8 +2,6 @@
     "name": "Defender.Level3.PlayModeTests",
     "rootNamespace": "Defender.Level3.Tests",
     "references": [
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner",
         "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
@@ -12,6 +10,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
     "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false
