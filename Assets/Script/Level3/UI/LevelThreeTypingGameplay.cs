@@ -5,6 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using DefenderOfIndependence.Audio;
 
 public sealed class LevelThreeTypingGameplay : MonoBehaviour
 {
@@ -32,6 +33,7 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     [SerializeField] private LevelThreeHealthDisplay healthDisplay;
     [SerializeField] private CanvasGroup failurePanelGroup;
     [SerializeField] private TMP_Text failureMessageText;
+    [SerializeField] private CanvasGroup failureFadeOverlay;
 
     [Header("Assignment Content")]
     [SerializeField, TextArea(2, 5)] private List<string> mainLines = new List<string>();
@@ -57,12 +59,16 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     [SerializeField] private LevelThreeTutorialPanel tutorialPanel;
     [SerializeField] private CanvasGroup restartFadeOverlay;
     [SerializeField, Min(0f)] private float restartFadeHalfDuration = 0.75f;
+    [Tooltip("Real-time silence after the third miss before the looping loss music begins.")]
+    [SerializeField, Min(0f)] private float loseMusicDelay = 1f;
 
     private readonly List<int> randomMediumIncidentPool = new List<int>();
     private ParsedLine mainLine;
     private ParsedLine incidentLine;
     private Coroutine incidentSpawnRoutine;
     private Coroutine restartRoutine;
+    private Coroutine failureRevealRoutine;
+    private Coroutine lossMusicDelayRoutine;
     private float mainElapsed;
     private float currentMainLineDuration = 5f;
     private float incidentElapsed;
@@ -83,6 +89,9 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     public int IncidentTypedCharacterCount => incidentTypedCharacters;
     public PanelSelection SelectedPanel { get; private set; } = PanelSelection.Main;
     public bool IsRestartTransitioning { get; private set; }
+    public bool IsFailureTransitioning => failureRevealRoutine != null;
+    public bool IsLossMusicDelayPending => lossMusicDelayRoutine != null;
+    public float LoseMusicDelay => loseMusicDelay;
     public float RestartFadeAlpha => restartFadeOverlay != null ? restartFadeOverlay.alpha : 0f;
     public UnityEvent GameplayCompletedEvent => onGameplayCompleted;
 
@@ -95,7 +104,7 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     {
         if (IsFailed)
         {
-            if (!IsRestartTransitioning && Input.GetKeyDown(KeyCode.R)) RetryFromFailure();
+            if (!IsRestartTransitioning && !IsFailureTransitioning && Input.GetKeyDown(KeyCode.R)) RetryFromFailure();
             return;
         }
         if (!IsRunning) return;
@@ -114,8 +123,12 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     {
         if (incidentSpawnRoutine != null) StopCoroutine(incidentSpawnRoutine);
         if (restartRoutine != null) StopCoroutine(restartRoutine);
+        if (failureRevealRoutine != null) StopCoroutine(failureRevealRoutine);
+        if (lossMusicDelayRoutine != null) StopCoroutine(lossMusicDelayRoutine);
         incidentSpawnRoutine = null;
         restartRoutine = null;
+        failureRevealRoutine = null;
+        lossMusicDelayRoutine = null;
         IsRestartTransitioning = false;
         tutorialPanel?.SetInteractionPaused(false);
         if (restartFadeOverlay != null) restartFadeOverlay.blocksRaycasts = false;
@@ -156,6 +169,7 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     public void SubmitCharacter(char character)
     {
         if (!IsRunning || character == '\t' || character == '\r' || character == '\n') return;
+        if (!char.IsControl(character)) GameAudioService.Instance?.PlayKeyboardTap();
 
         if (SelectedPanel == PanelSelection.Incident && IncidentIsVisible)
         {
@@ -197,6 +211,8 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
         if (mainTimerLabel != null) mainTimerLabel.text = "SPEECH TIMER";
         if (mainPageText != null) mainPageText.text = $"{index + 1:00} / {mainLines.Count:00}";
         RefreshMainMessage();
+        if (mainLines[index].IndexOf("Merdeka", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            GameAudioService.Instance?.PlayMerdeka();
         ApplySelection(IncidentIsVisible ? SelectedPanel : PanelSelection.Main);
     }
 
@@ -247,13 +263,39 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
         HideIncident();
         if (failureMessageText != null)
             failureMessageText.text = "CEREMONY RECORDING FAILED\n\nThree required entries were missed.\n\nPRESS R TO RETRY FROM THE FINAL TUTORIAL CHECK";
-        ShowGroup(failurePanelGroup);
+        GameAudioService.Instance?.StopMusic();
+        HideGroup(failurePanelGroup);
+        failureRevealRoutine = StartCoroutine(RevealFailureAfterBlackFade());
+        lossMusicDelayRoutine = StartCoroutine(PlayLossMusicAfterDelay());
         return true;
+    }
+
+    private IEnumerator PlayLossMusicAfterDelay()
+    {
+        if (loseMusicDelay > 0f) yield return new WaitForSecondsRealtime(loseMusicDelay);
+        GameAudioService.Instance?.PlayLossMusic();
+        lossMusicDelayRoutine = null;
+    }
+
+    private IEnumerator RevealFailureAfterBlackFade()
+    {
+        CanvasGroup fade = failureFadeOverlay != null ? failureFadeOverlay : restartFadeOverlay;
+        yield return FadeOverlay(fade, fade != null ? fade.alpha : 0f, 1f, restartFadeHalfDuration);
+        ShowGroup(failurePanelGroup);
+        yield return FadeOverlay(fade, 1f, 0f, restartFadeHalfDuration);
+        if (fade != null) fade.blocksRaycasts = false;
+        failureRevealRoutine = null;
     }
 
     private IEnumerator RestartFromFinalTutorialLine()
     {
         IsRestartTransitioning = true;
+        if (lossMusicDelayRoutine != null)
+        {
+            StopCoroutine(lossMusicDelayRoutine);
+            lossMusicDelayRoutine = null;
+        }
+        GameAudioService.Instance?.RestoreCurrentSceneMusic();
         yield return FadeRestartOverlay(RestartFadeAlpha, 1f, restartFadeHalfDuration);
 
         IsRunning = false;
@@ -279,15 +321,18 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
     }
 
     private IEnumerator FadeRestartOverlay(float from, float to, float duration)
+        => FadeOverlay(restartFadeOverlay, from, to, duration);
+
+    private static IEnumerator FadeOverlay(CanvasGroup overlay, float from, float to, float duration)
     {
-        if (restartFadeOverlay == null) yield break;
-        restartFadeOverlay.gameObject.SetActive(true);
-        restartFadeOverlay.alpha = from;
-        restartFadeOverlay.interactable = false;
-        restartFadeOverlay.blocksRaycasts = true;
+        if (overlay == null) yield break;
+        overlay.gameObject.SetActive(true);
+        overlay.alpha = from;
+        overlay.interactable = false;
+        overlay.blocksRaycasts = true;
         if (duration <= 0f)
         {
-            restartFadeOverlay.alpha = to;
+            overlay.alpha = to;
             yield break;
         }
 
@@ -295,10 +340,10 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
         while (elapsed < duration)
         {
             elapsed += Time.unscaledDeltaTime;
-            restartFadeOverlay.alpha = Mathf.Lerp(from, to, Mathf.Clamp01(elapsed / duration));
+            overlay.alpha = Mathf.Lerp(from, to, Mathf.Clamp01(elapsed / duration));
             yield return null;
         }
-        restartFadeOverlay.alpha = to;
+        overlay.alpha = to;
     }
 
     private float GetMainLineDuration(int index)
@@ -521,6 +566,7 @@ public sealed class LevelThreeTypingGameplay : MonoBehaviour
             mainLineDurations[index] = Mathf.Max(0.1f, mainLineDurations[index]);
         incidentSeconds = Mathf.Max(0.1f, incidentSeconds);
         restartFadeHalfDuration = Mathf.Max(0f, restartFadeHalfDuration);
+        loseMusicDelay = Mathf.Max(0f, loseMusicDelay);
         incidentCanvasMargin = Mathf.Max(0f, incidentCanvasMargin);
         incidentSpawnDelayRange.x = Mathf.Max(0f, incidentSpawnDelayRange.x);
         incidentSpawnDelayRange.y = Mathf.Max(incidentSpawnDelayRange.x, incidentSpawnDelayRange.y);

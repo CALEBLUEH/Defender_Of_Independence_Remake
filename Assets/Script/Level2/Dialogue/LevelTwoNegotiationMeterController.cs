@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using DefenderOfIndependence.Audio;
 
 namespace DefenderOfIndependence.Level2
 {
@@ -186,6 +187,7 @@ namespace DefenderOfIndependence.Level2
             yield return Fade(finalOverlay, 1f, resultFadeDuration, true);
 
             bool passed = !failedBeforeFinalDay && HasPassed;
+            if (!passed) GameAudioService.Instance?.PlayLossMusic();
             if (finalHeading != null)
             {
                 finalHeading.text = failedBeforeFinalDay

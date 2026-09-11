@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
+using DefenderOfIndependence.Audio;
 
 [DefaultExecutionOrder(-1000)]
 public sealed class LevelThreeOpeningSequence : MonoBehaviour
@@ -70,6 +71,9 @@ public sealed class LevelThreeOpeningSequence : MonoBehaviour
     {
         IsComplete = false;
         SetShot(1);
+        // This is a presentation cue for the first stadium shot, not Credits audio.
+        // PlayEffect uses PlayOneShot, so the cheering never loops.
+        GameAudioService.Instance?.PlayCheering();
         yield return Fade(1f, 0f, sceneEntryFadeInDuration);
 
         PlayClip(camera1Animator, camera1Clip);

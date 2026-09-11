@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using DefenderOfIndependence.Audio;
 
 namespace DefenderOfIndependence.SceneFlow
 {
@@ -18,6 +19,7 @@ namespace DefenderOfIndependence.SceneFlow
         [SerializeField] private Button backToMenuButton;
         [SerializeField] private Button skipButton;
         [SerializeField] private TMP_Text optionsNotice;
+        [SerializeField] private AudioOptionsPanelController audioOptionsPanel;
 
         [Header("Scene Behaviour")]
         [SerializeField] private PauseSceneKind sceneKind;
@@ -43,7 +45,7 @@ namespace DefenderOfIndependence.SceneFlow
         private void OnEnable()
         {
             resumeButton?.onClick.AddListener(Resume);
-            optionsButton?.onClick.AddListener(ToggleOptionsNotice);
+            optionsButton?.onClick.AddListener(OpenOptions);
             backToMenuButton?.onClick.AddListener(BackToMenu);
             skipButton?.onClick.AddListener(SkipCurrentContent);
         }
@@ -51,7 +53,7 @@ namespace DefenderOfIndependence.SceneFlow
         private void OnDisable()
         {
             resumeButton?.onClick.RemoveListener(Resume);
-            optionsButton?.onClick.RemoveListener(ToggleOptionsNotice);
+            optionsButton?.onClick.RemoveListener(OpenOptions);
             backToMenuButton?.onClick.RemoveListener(BackToMenu);
             skipButton?.onClick.RemoveListener(SkipCurrentContent);
         }
@@ -80,6 +82,7 @@ namespace DefenderOfIndependence.SceneFlow
                 }
             }
             creditVideo?.SetPaused(true);
+            GameAudioService.Instance?.PauseMusic();
             SetPanelVisible(true);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -89,6 +92,7 @@ namespace DefenderOfIndependence.SceneFlow
         {
             if (!IsPaused) return;
             RestoreRuntimeState();
+            audioOptionsPanel?.Close();
             SetPanelVisible(false);
             if (optionsNotice != null) optionsNotice.gameObject.SetActive(false);
             Cursor.lockState = lockCursorOnResume ? CursorLockMode.Locked : CursorLockMode.None;
@@ -124,9 +128,16 @@ namespace DefenderOfIndependence.SceneFlow
             if (optionsNotice != null) optionsNotice.gameObject.SetActive(!optionsNotice.gameObject.activeSelf);
         }
 
+        private void OpenOptions()
+        {
+            if (audioOptionsPanel != null) audioOptionsPanel.Open();
+            else ToggleOptionsNotice();
+        }
+
         private void PrepareToLeave()
         {
             if (IsPaused) RestoreRuntimeState();
+            audioOptionsPanel?.Close();
             SetPanelVisible(false);
         }
 
@@ -136,6 +147,7 @@ namespace DefenderOfIndependence.SceneFlow
                 if (entry.Key != null) entry.Key.enabled = entry.Value;
             targetStates.Clear();
             creditVideo?.SetPaused(false);
+            GameAudioService.Instance?.ResumeMusic();
             Time.timeScale = previousTimeScale;
             IsPaused = false;
         }

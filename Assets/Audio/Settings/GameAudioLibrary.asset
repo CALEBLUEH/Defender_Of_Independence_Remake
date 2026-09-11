@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1b619813a1d45645ba1fd0a7b98a039, type: 3}
+  m_Name: GameAudioLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::DefenderOfIndependence.Audio.GameAudioLibrary
+  buttonClick: {fileID: 8300000, guid: 97659ce39b6e48543b1e48ccf501696a, type: 3}
+  nextDialogue: {fileID: 8300000, guid: 618bfa5c06760b04b8c6e01089a91400, type: 3}
+  walking: {fileID: 8300000, guid: dc03f1d63de1ff444bafa4ebaee8503e, type: 3}
+  loseMusic: {fileID: 8300000, guid: fee8dce3c2454aa4cb1ff9437c2a2e5a, type: 3}
+  keyboardTap: {fileID: 8300000, guid: 7cccf82d570afea458ec7fcd2426c0de, type: 3}
+  cheering: {fileID: 8300000, guid: a37abc7b12ce89e4cb32327212c25328, type: 3}
+  merdeka: {fileID: 8300000, guid: abaf85dfab2f2f44f94c806557d53859, type: 3}
+  gunshot: {fileID: 8300000, guid: b303d7839eb86d7448fe2108a00d0075, type: 3}
+  mainMenuMusic: {fileID: 8300000, guid: fbdc467937b80f64b9de9433d804256f, type: 3}
+  levelOneMusic: {fileID: 8300000, guid: 96197af89a1c9a74fbfccecd9642728a, type: 3}
+  levelTwoMusic: {fileID: 8300000, guid: 260dc2ab9be88594aba0052f0f2bf4c8, type: 3}
+  levelThreeMusic: {fileID: 8300000, guid: 37421f84ed901c84e953cf1ae2b0cbf1, type: 3}
+  galleryMusic: {fileID: 8300000, guid: 264f443b68b6d214bab3a27625a20691, type: 3}

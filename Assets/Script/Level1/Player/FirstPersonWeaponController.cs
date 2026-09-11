@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Serialization;
+using DefenderOfIndependence.Audio;
 
 namespace DefenderOfIndependence.Level1
 {
@@ -121,6 +122,7 @@ namespace DefenderOfIndependence.Level1
             _recoilPosition = Mathf.Min(_recoilPosition + weaponPushback, weaponPushback * 2f);
             _recoilRotation = Mathf.Min(_recoilRotation + weaponPitchKick, weaponPitchKick * 2f);
             _viewKick = Mathf.Min(_viewKick + viewPitchKick, viewPitchKick * 3f);
+            GameAudioService.Instance?.PlayGunshot();
 
             if (aimCamera != null && Physics.Raycast(
                     aimCamera.transform.position,

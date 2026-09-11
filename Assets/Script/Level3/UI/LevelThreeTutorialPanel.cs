@@ -5,6 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using DefenderOfIndependence.Audio;
 
 public sealed class LevelThreeTutorialPanel : MonoBehaviour
 {
@@ -134,6 +135,7 @@ public sealed class LevelThreeTutorialPanel : MonoBehaviour
     public void ShowTutorial()
     {
         if (!isActiveAndEnabled || showRoutine != null || IsVisible || tutorialLines.Count == 0) return;
+        GameAudioService.Instance?.StartLevelThreeMusic();
         showRoutine = StartCoroutine(FadeInAndStart());
     }
 
@@ -158,6 +160,7 @@ public sealed class LevelThreeTutorialPanel : MonoBehaviour
     public void SubmitCharacter(char character)
     {
         if (!IsVisible || !lineIsActive || IsFinished || character == '\t' || character == '\r' || character == '\n') return;
+        if (!char.IsControl(character)) GameAudioService.Instance?.PlayKeyboardTap();
 
         if (SelectedPanel == TutorialPanelSelection.Incident && IncidentPanelVisible && !IncidentResolved)
         {

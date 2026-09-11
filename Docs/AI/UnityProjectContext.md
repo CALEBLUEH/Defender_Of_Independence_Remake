@@ -19,7 +19,7 @@
 - Entering Day 6 requires all three meters to be above 50; failing this check shows the restart result panel without advancing from Day 5. The final conference still requires all three meters to be above 65.
 - Energy and negotiation meters are hidden during day-card transitions and render behind document/conversation panels.
 
-Last analyzed: 2026-09-07  
+Last analyzed: 2026-09-11
 Analyzed commit: `ea60326be2f89db5d0e861d731aa285d8bda5e44`
 
 ## Project summary
@@ -106,6 +106,7 @@ The remake is early-stage and has no established gameplay architecture beyond St
 - The Level 2 day-system Play Mode smoke test advanced from Day 1 through Day 6, returned the player to `PlayerInitialSpawnPoint` after every clock use, verified daily character visibility counts of 1/1/1/0/1/2, and confirmed the clock cannot advance past the final day. A separate persistence pass reloaded all clock, HUD, briefing, and marker references.
 - The Level 3 environment import compiled and passed a persistence validation for all three prefabs plus the saved stadium scene instance. A focused Play Mode smoke test instantiated the Malaysia flag and observed its rig transform animation advance to normalized time 0.166. The exact visual framing and final prop placement remain manual Scene-view work.
 - The Level 3 camera/UI PlayMode regression suite covers Camera 1 retaining its final pose, Camera 2 and Tunku moving beneath the black fade-in, all timer Sliders counting down, tutorial repetition, delayed/immediate incident resolution, health reveal, tutorial-to-gameplay handoff, randomized incident canvas containment, blank-line incident formatting, health Slider synchronization, and failure after three combined misses.
+- The persistent audio system routes 13 supplied clips through separate music/effects channels. Authored Options panels exist in all nine build scenes; sliders persist independently, pause/resume preserves music playback position, and Level 3 owns one stable listener. Its non-looping cheer begins with Camera 1, gameplay music starts with the tutorial, the third miss gives one second of silence before looping loss music, and scene changes clear leftover one-shots. Focused authored-scene and Play Mode validators pass.
 
 ## Important constraints and risks
 

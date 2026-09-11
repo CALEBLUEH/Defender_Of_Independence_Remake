@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using DefenderOfIndependence.Audio;
 using UnityEngine.Serialization;
 
 namespace DefenderOfIndependence.Level1
@@ -238,6 +239,7 @@ namespace DefenderOfIndependence.Level1
             }
 
             _nextFireTime = Time.time + fireInterval;
+            GameAudioService.Instance?.PlayGunshot();
             Vector3 origin = shootOrigin == null ? (eye == null ? transform.position + Vector3.up * 1.5f : eye.position) : shootOrigin.position;
             Vector3 exactDirection = (_playerHealth.AimPointPosition - origin).normalized;
             float distanceFactor = Mathf.InverseLerp(farAccuracyDistance, nearAccuracyDistance, playerDistance);

@@ -20,12 +20,13 @@ All three cutscenes, all three gameplay scenes, credits, and the Gallery contain
 - Credits uses the same finish path as the hold-Space skip.
 - Gallery has no skip action.
 
-The Options button currently shows a placeholder message. Its button and notice are already authored for the later sound/music settings pass.
+The Options button opens the authored audio panel. Its separate sound-effect and music sliders apply immediately, persist across scenes and application restarts, and can be closed with the panel's X button.
 
 ## Inspector tuning
 
 - `Main Menu Progression` contains editable scene names, message text flow references, and fade duration.
 - Each `Global Pause Menu` contains its scene kind, skip destination, cursor behavior, and explicit components disabled while paused.
+- Pause menus suspend background music and Resume continues it from the same playback position.
 - `Level Three Credit Transition` remains the single Level 3-to-credits route.
 
 ## Manual checks

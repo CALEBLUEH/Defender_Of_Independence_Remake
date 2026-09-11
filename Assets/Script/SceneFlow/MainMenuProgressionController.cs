@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using DefenderOfIndependence.Audio;
 
 namespace DefenderOfIndependence.SceneFlow
 {
@@ -14,6 +15,7 @@ namespace DefenderOfIndependence.SceneFlow
         [SerializeField] private Button optionButton;
         [SerializeField] private Button quitButton;
         [SerializeField] private Button resetButton;
+        [SerializeField] private AudioOptionsPanelController audioOptionsPanel;
 
         [Header("Level Selection")]
         [SerializeField] private CanvasGroup levelSelectionPanel;
@@ -58,7 +60,7 @@ namespace DefenderOfIndependence.SceneFlow
         {
             startButton?.onClick.AddListener(HandleStart);
             galleryButton?.onClick.AddListener(HandleGallery);
-            optionButton?.onClick.AddListener(ShowOptionsMessage);
+            optionButton?.onClick.AddListener(OpenOptions);
             quitButton?.onClick.AddListener(QuitGame);
             resetButton?.onClick.AddListener(ConfirmReset);
             levelOneButton?.onClick.AddListener(() => LoadScene(cutsceneLevelOne));
@@ -74,7 +76,7 @@ namespace DefenderOfIndependence.SceneFlow
         {
             startButton?.onClick.RemoveListener(HandleStart);
             galleryButton?.onClick.RemoveListener(HandleGallery);
-            optionButton?.onClick.RemoveListener(ShowOptionsMessage);
+            optionButton?.onClick.RemoveListener(OpenOptions);
             quitButton?.onClick.RemoveListener(QuitGame);
             resetButton?.onClick.RemoveListener(ConfirmReset);
             closeLevelSelectionButton?.onClick.RemoveAllListeners();
@@ -138,6 +140,12 @@ namespace DefenderOfIndependence.SceneFlow
         private void ShowOptionsMessage()
         {
             ShowMessage("OPTIONS", "Sound, music, and display settings will be added in the next polish pass.", null, false);
+        }
+
+        private void OpenOptions()
+        {
+            if (audioOptionsPanel != null) audioOptionsPanel.Open();
+            else ShowOptionsMessage();
         }
 
         private void ShowMessage(string title, string body, System.Action continueAction, bool showCancel)

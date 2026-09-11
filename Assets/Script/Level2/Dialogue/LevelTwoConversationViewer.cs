@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using DefenderOfIndependence.Audio;
 
 namespace DefenderOfIndependence.Level2
 {
@@ -234,6 +235,7 @@ namespace DefenderOfIndependence.Level2
 
         private void SayLine(string speaker, string text, System.Action onComplete)
         {
+            GameAudioService.Instance?.PlayNextDialogue();
             sayDialog.SetCharacterName(speaker ?? string.Empty, new Color(0.22f, 0.13f, 0.07f));
             sayDialog.Say(text ?? string.Empty, true, true, false, true, false, null, onComplete);
         }
