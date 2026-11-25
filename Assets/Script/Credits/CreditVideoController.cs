@@ -14,6 +14,9 @@ public sealed class CreditVideoController : MonoBehaviour
     [SerializeField] private string fallbackDestinationScene = "Scene_Gallery";
     [SerializeField, Min(1f)] private float prepareTimeout = 15f;
 
+    [Header("Web Playback")]
+    [SerializeField] private string webVideoFile = "DefenderOfIndependence/credits.mp4";
+
     [Header("Completion Message")]
     [SerializeField] private CanvasGroup completionMessageGroup;
     [SerializeField] private TMP_Text completionMessageText;
@@ -133,6 +136,11 @@ public sealed class CreditVideoController : MonoBehaviour
 
         playbackCamera.clearFlags = CameraClearFlags.SolidColor;
         playbackCamera.backgroundColor = Color.black;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        videoPlayer.clip = null;
+        videoPlayer.source = VideoSource.Url;
+        videoPlayer.url = Application.streamingAssetsPath.TrimEnd('/') + "/" + webVideoFile;
+#endif
         videoPlayer.playOnAwake = false;
         videoPlayer.waitForFirstFrame = true;
         videoPlayer.isLooping = false;
@@ -147,6 +155,17 @@ public sealed class CreditVideoController : MonoBehaviour
         audioSource.loop = false;
         audioSource.spatialBlend = 0f;
     }
+
+#if UNITY_EDITOR
+    // Changes only Unity's temporary Web build scene, preserving the Editor clip.
+    public void PrepareWebBuild()
+    {
+        videoPlayer.playOnAwake = false;
+        videoPlayer.clip = null;
+        videoPlayer.source = VideoSource.Url;
+        videoPlayer.url = "StreamingAssets/" + webVideoFile;
+    }
+#endif
 
     private void HandleVideoFinished(VideoPlayer _) => BeginFinish();
 
